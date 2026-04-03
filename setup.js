@@ -45,17 +45,31 @@ async function setup() {
   }
 
   // Step 2: Ask for Secret Keys (Optional)
-  log("\nDo you have any 'Secret Keys' for Supabase? (If not, just press ENTER to use magic mocks)");
+  log("\nDo you have a Database to connect? (If not, just press NO to use magic mocks)");
   
   const hasKeys = await new Promise(res => {
-    rl.question("Do you want to add keys now? (yes/no): ", (ans) => res(ans.toLowerCase().startsWith('y')));
+    rl.question("Do you want to add database keys now? (yes/no): ", (ans) => res(ans.toLowerCase().startsWith('y')));
   });
 
   if (hasKeys) {
-    const url = await new Promise(res => rl.question("Paste your Supabase URL: ", res));
-    const key = await new Promise(res => rl.question("Paste your Supabase Anon Key: ", res));
+    const dbType = await new Promise(res => {
+        rl.question("Which database are you using? (1: Supabase, 2: MySQL): ", res);
+    });
+
+    let envContent = "JWT_SECRET=demo_secret\n";
+
+    if (dbType === "1") {
+        const url = await new Promise(res => rl.question("Paste your Supabase URL: ", res));
+        const key = await new Promise(res => rl.question("Paste your Supabase Anon Key: ", res));
+        envContent += `SUPABASE_URL=${url}\nSUPABASE_ANON_KEY=${key}\n`;
+    } else {
+        const host = await new Promise(res => rl.question("MySQL Host (usually localhost): ", res));
+        const user = await new Promise(res => rl.question("MySQL User (usually root): ", res));
+        const pass = await new Promise(res => rl.question("MySQL Password: ", res));
+        const name = await new Promise(res => rl.question("Database Name: ", res));
+        envContent += `DB_HOST=${host}\nDB_USER=${user}\nDB_PASSWORD=${pass}\nDB_NAME=${name}\nDB_PORT=3306\n`;
+    }
     
-    const envContent = `SUPABASE_URL=${url}\nSUPABASE_ANON_KEY=${key}\nJWT_SECRET=demo_secret\n`;
     fs.writeFileSync('./backend/.env', envContent);
     log("✅ Keys saved in backend/.env!");
   } else {
