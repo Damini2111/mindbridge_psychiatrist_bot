@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { 
-  Brain, Mail, Lock, User, Stethoscope, 
-  Shield, Eye, EyeOff, Sparkles, Heart, Zap, ArrowRight, ArrowLeft,
-  Activity, Globe, Compass, ShieldCheck
+import {
+    Brain, Mail, Lock, User, Stethoscope,
+    Shield, Eye, EyeOff, Sparkles, Heart, Zap, ArrowRight, ArrowLeft,
+    Activity, Globe, Compass, ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ type UserRole = 'user' | 'psychiatrist' | 'admin';
 const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    
+
     // UI State
     const [step, setStep] = useState<'role' | 'auth'>('role');
     const [isLogin, setIsLogin] = useState(true);
@@ -71,8 +71,8 @@ const Login = () => {
 
         try {
             const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-            const payload = isLogin 
-                ? { email, password, role } 
+            const payload = isLogin
+                ? { email, password, role }
                 : { email, password, display_name: displayName, role };
 
             const response = await fetch(`http://localhost:5000${endpoint}`, {
@@ -86,11 +86,11 @@ const Login = () => {
             if (data.success) {
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
-                
+
                 toast.success(isLogin ? "Neural Alignment Successful" : "Sanctuary Path Established", {
-                   description: `Synchronized with the ${roleConfigs[data.user.role as UserRole].title} protocol.`,
+                    description: `Synchronized with the ${roleConfigs[data.user.role as UserRole].title} protocol.`,
                 });
-                
+
                 if (data.user.role === 'admin') navigate('/admin');
                 else if (data.user.role === 'psychiatrist') navigate('/psychiatrist');
                 else navigate('/dashboard');
@@ -111,7 +111,7 @@ const Login = () => {
     return (
         <div className="min-h-screen relative overflow-hidden bg-[#fafafa]">
             <Navbar />
-            
+
             {/* Zen Foundation Background */}
             <div className="fixed inset-0 z-0 bg-[#fafafa]" />
             <div className="absolute top-0 right-0 p-32 opacity-[0.03] scale-150 rotate-12 pointer-events-none z-0">
@@ -120,20 +120,20 @@ const Login = () => {
 
             <main className="relative z-10 flex items-center justify-center min-h-screen pt-24 pb-20 px-6">
                 <div className="w-full max-w-7xl grid lg:grid-cols-12 gap-16 items-center">
-                    
+
                     {/* Brand Context (Left) */}
                     <div className="lg:col-span-12 xl:col-span-5 space-y-12 animate-fade-in text-center xl:text-left">
                         <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full harmonic-glass bg-white/20 border-white/50 animate-breathe mx-auto xl:mx-0">
                             <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
                             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-800">Secure Protocol v2.4</span>
                         </div>
-                        
+
                         <div className="space-y-6">
                             <h1 className="text-6xl sm:text-7xl lg:text-9xl font-serif font-black tracking-tighter leading-none text-slate-900 italic">
                                 {step === 'role' ? 'Identify.' : 'Synchronize.'}
                             </h1>
                             <p className="text-xl sm:text-2xl text-slate-400 font-medium max-w-xl mx-auto xl:mx-0 leading-relaxed">
-                                {step === 'role' 
+                                {step === 'role'
                                     ? "Select your resonance point to enter the sanctuary. Each node is uniquely mapped to your neural signature."
                                     : `Establishing a secure biometric handshake with the ${config.title} protocol.`}
                             </p>
@@ -142,7 +142,7 @@ const Login = () => {
 
                     {/* Authentication Interaction (Right) */}
                     <div className="lg:col-span-12 xl:col-span-7 flex flex-col items-center">
-                        
+
                         {step === 'role' ? (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full animate-slide-up">
                                 {(Object.keys(roleConfigs) as UserRole[]).map((r) => {
@@ -157,16 +157,16 @@ const Login = () => {
                                             <div className="absolute -bottom-8 -right-8 opacity-[0.05] group-hover:opacity-[0.08] transition-all rotate-12 scale-150">
                                                 <RoleIcon className="w-32 h-32" />
                                             </div>
-                                            
+
                                             <div className={cn("w-20 h-20 rounded-full flex items-center justify-center text-teal-600 border border-white/60 bg-white/40 group-hover:scale-110 transition-transform duration-700", cfg.bgLight, cfg.textColor)}>
                                                 <RoleIcon className="w-10 h-10" />
                                             </div>
-                                            
+
                                             <div className="space-y-4">
                                                 <h3 className="text-4xl font-serif font-black text-slate-900 italic leading-none">{cfg.title}.</h3>
                                                 <p className="text-lg text-slate-400 font-medium leading-relaxed">{cfg.description}</p>
                                             </div>
-                                            
+
                                             <div className="pt-6">
                                                 <div className={cn("inline-flex items-center gap-3 text-[10px] font-black uppercase tracking-widest group-hover:gap-6 transition-all duration-500", cfg.textColor)}>
                                                     Access Portal <ArrowRight className="w-4 h-4" />
@@ -179,9 +179,9 @@ const Login = () => {
                         ) : (
                             <div className="w-full max-w-xl animate-slide-up">
                                 <div className="p-12 lg:p-20 rounded-[4rem] border border-white/60 bg-white/40 backdrop-blur-3xl shadow-iris relative text-center">
-                                    
+
                                     {/* 🔙 Back */}
-                                    <button 
+                                    <button
                                         onClick={() => setStep('role')}
                                         className="absolute top-10 left-10 w-12 h-12 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:border-teal-200 transition-all z-20 group"
                                     >
@@ -259,9 +259,9 @@ const Login = () => {
                                         )}
 
                                         <div className="pt-6">
-                                            <Button 
-                                                type="submit" 
-                                                className="w-full btn-aura h-20 text-md tracking-[0.4em] uppercase shadow-2xl" 
+                                            <Button
+                                                type="submit"
+                                                className="w-full btn-aura h-20 text-md tracking-[0.4em] uppercase shadow-2xl"
                                                 disabled={loading}
                                             >
                                                 {loading ? "Aligning..." : (isLogin ? "Initiate Sync" : "Deploy Identity")}

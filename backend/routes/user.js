@@ -1,7 +1,7 @@
-// routes/user.js - SUPABASE LIVE VERSION
+// routes/user.js - MYSQL VERSION
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase');
+const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 
 // ============================================
@@ -9,36 +9,36 @@ const { authenticate } = require('../middleware/auth');
 // ============================================
 router.get('/profile', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
-    console.log('📊 Fetching live profile for user ID:', userId);
+    const userId = req.user.userId || req.user.id;
+    console.log('📊 Fetching MySQL profile for user ID:', userId);
 
-    const { data: user, error } = await supabase
-      .from('users')
-      .select(`
-        id, email, display_name, role, phone, date_of_birth, gender, profile_picture, last_login, created_at,
-        user_profiles (city, country, emergency_contact_name, emergency_contact_phone)
-      `)
-      .eq('id', userId)
-      .single();
+    const [users] = await db.query(`
+      SELECT 
+        u.id, u.email, u.display_name, u.role, u.phone, u.gender, u.dob, u.created_at, u.can_message,
+        up.city, up.country, up.emergency_contact_name, up.emergency_contact_phone
+      FROM users u
+      LEFT JOIN user_profiles up ON u.id = up.user_id
+      WHERE u.id = ?
+    `, [userId]);
 
-    if (error || !user) {
+    if (!users.length) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Get latest stress level
-    const { data: stressLogs } = await supabase
-      .from('stress_logs')
-      .select('score')
-      .eq('user_id', userId)
-      .order('logged_at', { ascending: false })
-      .limit(1);
+    const user = users[0];
 
-    user.stressLevel = stressLogs?.length > 0 ? stressLogs[0].score : 50;
+    // Get latest stress level
+    const [stressLogs] = await db.query(
+      'SELECT score FROM stress_logs WHERE user_id = ? ORDER BY logged_at DESC LIMIT 1',
+      [userId]
+    );
+
+    user.stressLevel = stressLogs.length > 0 ? stressLogs[0].score : 50;
 
     res.json({ success: true, user });
   } catch (error) {
     console.error('❌ Profile fetch error:', error.message);
-    res.status(500).json({ success: false, message: 'Supabase error' });
+    res.status(500).json({ success: false, message: 'MySQL error', error: error.message });
   }
 });
 
@@ -47,42 +47,33 @@ router.get('/profile', authenticate, async (req, res) => {
 // ============================================
 router.put('/profile', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId || req.user.id;
     const { 
-      name, phone, dateOfBirth, gender,
+      name, phone, gender, dob,
       city, country, emergencyContactName, emergencyContactPhone
     } = req.body;
 
     // Update users table
-    const { error: userError } = await supabase
-      .from('users')
-      .update({ 
-        display_name: name, 
-        phone, 
-        date_of_birth: dateOfBirth, 
-        gender 
-      })
-      .eq('id', userId);
+    await db.query(
+      'UPDATE users SET display_name = ?, phone = ?, gender = ?, dob = ? WHERE id = ?',
+      [name, phone, gender, dob, userId]
+    );
 
-    if (userError) throw userError;
-
-    // Update or Insert profile table
-    const { error: profileError } = await supabase
-      .from('user_profiles')
-      .upsert({ 
-        user_id: userId, 
-        city, 
-        country, 
-        emergency_contact_name: emergencyContactName, 
-        emergency_contact_phone: emergencyContactPhone 
-      });
-
-    if (profileError) throw profileError;
+    // Update or Insert into user_profiles table using UPSERT equivalent in MySQL
+    await db.query(`
+      INSERT INTO user_profiles (user_id, city, country, emergency_contact_name, emergency_contact_phone)
+      VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        city = VALUES(city),
+        country = VALUES(country),
+        emergency_contact_name = VALUES(emergency_contact_name),
+        emergency_contact_phone = VALUES(emergency_contact_phone)
+    `, [userId, city, country, emergencyContactName, emergencyContactPhone]);
 
     res.json({ success: true, message: 'Profile updated successfully' });
   } catch (error) {
     console.error('❌ Profile update error:', error.message);
-    res.status(500).json({ success: false, message: 'Update failed' });
+    res.status(500).json({ success: false, message: 'Update failed', error: error.message });
   }
 });
 
@@ -91,22 +82,23 @@ router.put('/profile', authenticate, async (req, res) => {
 // ============================================
 router.get('/stats', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId || req.user.id;
 
-    const { data: chats } = await supabase.from('chat_sessions').select('id').eq('user_id', userId);
-    const { data: games } = await supabase.from('game_sessions').select('id').eq('user_id', userId);
-    const { data: stress } = await supabase.from('stress_logs').select('logged_at').eq('user_id', userId);
+    const [chats] = await db.query('SELECT COUNT(*) as count FROM chat_sessions WHERE user_id = ?', [userId]);
+    const [games] = await db.query('SELECT COUNT(*) as count FROM game_sessions WHERE user_id = ?', [userId]);
+    const [stress] = await db.query('SELECT COUNT(*) as count FROM stress_logs WHERE user_id = ?', [userId]);
 
     res.json({
       success: true,
       stats: {
-        chatSessions: chats?.length || 0,
+        chatSessions: chats[0].count,
         therapySessions: 0, 
-        gamesPlayed: games?.length || 0,
-        currentStreak: stress?.length || 1
+        gamesPlayed: games[0].count,
+        currentStreak: stress[0].count
       }
     });
   } catch (error) {
+    console.error('❌ Stats error:', error.message);
     res.status(500).json({ success: false, message: 'Stats failed' });
   }
 });

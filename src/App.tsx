@@ -25,6 +25,7 @@ import Notifications from "./pages/Notifications";
 import Privacy from "./pages/Privacy";
 import TermsPolicy from "./pages/TermsPolicy";
 import HelpSupport from "./pages/HelpSupport";
+import UserMessages from "./pages/UserMessages";
 
 // Psychiatrist Pages
 import PsychiatristDashboard from "./pages/PsychiatristDashboard";
@@ -38,6 +39,7 @@ import ClinicalReports from "./pages/ClinicalReports";
 import SessionInterface from "./pages/SessionInterface";
 import EmergencyAlertDetails from "./pages/EmergencyAlertDetails";
 import ClinicalNotes from "./pages/ClinicalNotes";
+import AddPatient from "./pages/AddPatient";
 
 // Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
@@ -65,6 +67,7 @@ const App = () => (
           <Route path="/games" element={<ProtectedRoute allowedRoles={['user']}><Games /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute allowedRoles={['user']}><Settings /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute allowedRoles={['user']}><UserProfile /></ProtectedRoute>} />
+          <Route path="/clinical-chat" element={<ProtectedRoute allowedRoles={['user']}><UserMessages /></ProtectedRoute>} />
           
           {/* User Feature Details */}
           <Route path="/appearance" element={<ProtectedRoute allowedRoles={['user']}><Appearance /></ProtectedRoute>} />
@@ -82,6 +85,7 @@ const App = () => (
                 <Route path="schedule" element={<ScheduleManager />} />
                 <Route path="messages" element={<MessagesCenter />} />
                 <Route path="patients" element={<PatientManagement />} />
+                <Route path="add-patient" element={<AddPatient />} />
                 <Route path="patient/:id" element={<PatientDetails />} />
                 <Route path="notifications" element={<NotificationsCenter />} />
                 <Route path="reports" element={<ClinicalReports />} />

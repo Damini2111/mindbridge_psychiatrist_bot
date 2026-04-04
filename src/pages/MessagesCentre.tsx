@@ -1,231 +1,261 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import {
   ArrowLeft,
   Search,
   Send,
   MoreVertical,
-  AlertCircle,
-  CheckCheck,
+  ChevronRight,
+  MessageSquareOff,
+  MessageSquare,
+  Activity,
+  HeartPulse,
+  LayoutDashboard
 } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 interface Message {
   id: string;
-  patientId: string;
-  patientName: string;
-  avatar: string;
+  patientId: number;
   content: string;
   timestamp: string;
   read: boolean;
-  priority: 'low' | 'normal' | 'urgent';
   sender: 'patient' | 'psychiatrist';
-}
-
-interface Conversation {
-  patientId: string;
-  patientName: string;
-  avatar: string;
-  lastMessage: string;
-  timestamp: string;
-  unread: number;
-  priority: 'low' | 'normal' | 'urgent';
 }
 
 const MessagesCenter = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const selectedPatient = searchParams.get('patient');
-  const conversationId = searchParams.get('conversation');
+  const initialPatientId = searchParams.get('patient');
+  
+  const [patients, setPatients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
-  const [activeConversation, setActiveConversation] = useState(selectedPatient || conversationId || null);
+  const [activeConversation, setActiveConversation] = useState<number | null>(initialPatientId ? parseInt(initialPatientId) : null);
+  const [messages, setMessages] = useState<Message[]>([]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userName');
-    navigate('/');
-  };
+  const token = localStorage.getItem('token');
 
-  const conversations: Conversation[] = [
-    { patientId: 'p-3', patientName: 'Emily Davis', avatar: '👩‍🦰', lastMessage: 'I\'m having a really difficult day...', timestamp: '5 min ago', unread: 2, priority: 'urgent' },
-    { patientId: 'p-7', patientName: 'Marcus Thompson', avatar: '👨‍🦲', lastMessage: 'Thank you for checking in...', timestamp: '15 min ago', unread: 1, priority: 'normal' },
-    { patientId: 'p-1', patientName: 'Sarah Johnson', avatar: '👩', lastMessage: 'Just completed my breathing exercises...', timestamp: '30 min ago', unread: 1, priority: 'low' },
-    { patientId: 'p-5', patientName: 'Lisa Anderson', avatar: '👱‍♀️', lastMessage: 'Need to reschedule tomorrow...', timestamp: '1 hour ago', unread: 0, priority: 'normal' },
-    { patientId: 'p-2', patientName: 'Mike Chen', avatar: '👨', lastMessage: 'The new techniques are helping...', timestamp: '2 hours ago', unread: 0, priority: 'low' },
-  ];
+  useEffect(() => {
+    fetchPatients();
+  }, []);
 
-  const messages: Message[] = [
-    { id: '1', patientId: 'p-3', patientName: 'Emily Davis', avatar: '👩‍🦰', content: 'I\'m having a really difficult day. Can we talk soon?', timestamp: '5 min ago', read: false, priority: 'urgent', sender: 'patient' },
-    { id: '2', patientId: 'p-3', patientName: 'Emily Davis', avatar: '👩‍🦰', content: 'The anxiety is overwhelming today.', timestamp: '3 min ago', read: false, priority: 'urgent', sender: 'patient' },
-  ];
-
-  const filteredConversations = conversations.filter(conv =>
-    conv.patientName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleSendMessage = () => {
-    if (!messageText.trim()) return;
-    console.log('Sending message:', messageText);
-    setMessageText('');
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'text-red-500';
-      case 'normal': return 'text-yellow-500';
-      default: return 'text-gray-500';
+  const fetchPatients = async () => {
+    try {
+      const res = await fetch(`${API_URL}/psychiatrist/patients`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPatients(data.data);
+      }
+    } catch (e) {
+      console.error('Error fetching patients:', e);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const currentPatient = patients.find(p => p.user_id === activeConversation);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
+
+  const handleSendMessage = () => {
+    if (!messageText.trim() || !activeConversation) return;
+    
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      patientId: activeConversation,
+      content: messageText,
+      timestamp: 'Just now',
+      read: true,
+      sender: 'psychiatrist'
+    };
+    
+    setMessages([...messages, newMessage]);
+    setMessageText('');
+  };
+
+  const filteredPatients = patients.filter(p =>
+    (p.full_name || p.display_name)?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F8FAFC]">
       <Navbar userRole="psychiatrist" onLogout={handleLogout} />
 
-      <main className="container mx-auto px-4 py-8">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/psychiatrist')}
-          className="mb-6 gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </Button>
-
-        <div className="mb-6">
-          <h1 className="font-serif text-4xl font-bold text-foreground mb-2">Messages</h1>
-          <p className="text-muted-foreground">Communicate with your patients</p>
+      <main className="container mx-auto px-6 pt-40 pb-12 max-w-7xl">
+        <div className="flex items-center justify-between mb-8">
+           <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/psychiatrist')}
+                className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all text-slate-500 hover:text-indigo-600 border border-slate-100"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-3xl font-serif font-bold text-slate-900 tracking-tight">Clinical Correspondence</h1>
+                <p className="text-slate-500 font-medium">Securely coordinate care with your protocol patient list</p>
+              </div>
+           </div>
+           <button 
+             onClick={() => navigate('/psychiatrist/dashboard')}
+             className="flex items-center gap-2 text-indigo-600 font-bold bg-indigo-50 px-6 py-3 rounded-xl hover:bg-indigo-100 transition-colors"
+           >
+             <LayoutDashboard className="w-5 h-5" /> Dashboard
+           </button>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Conversations List */}
-          <Card className="lg:col-span-1 h-[calc(100vh-300px)]">
-            <CardHeader>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className="grid lg:grid-cols-3 gap-6 h-[700px]">
+          {/* Patient Registry Column */}
+          <Card className="lg:col-span-1 rounded-3xl border-none shadow-sm flex flex-col overflow-hidden bg-white">
+            <CardHeader className="p-6 border-b border-slate-100 bg-slate-50/30">
+               <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search conversations..."
+                  placeholder="Registry search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl border-none bg-white shadow-sm text-slate-900 focus:ring-2 focus:ring-indigo-600/20 font-medium placeholder:text-slate-400"
                 />
               </div>
             </CardHeader>
-            <CardContent className="p-0 overflow-y-auto max-h-[calc(100vh-400px)]">
-              {filteredConversations.map((conv) => (
-                <button
-                  key={conv.patientId}
-                  onClick={() => setActiveConversation(conv.patientId)}
-                  className={`w-full p-4 border-b border-border hover:bg-muted/50 transition-colors text-left ${
-                    activeConversation === conv.patientId ? 'bg-muted' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="text-3xl">{conv.avatar}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-semibold text-foreground truncate">{conv.patientName}</h3>
-                        {conv.priority === 'urgent' && (
-                          <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                        )}
+            <CardContent className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-slate-200 bg-white">
+              {loading ? (
+                <div className="p-4 space-y-4 animate-pulse">
+                  {[1, 2, 3, 4].map(i => <div key={i} className="h-20 bg-slate-50 rounded-2xl" />)}
+                </div>
+              ) : filteredPatients.length > 0 ? (
+                filteredPatients.map((p) => (
+                  <button
+                    key={p.user_id}
+                    onClick={() => setActiveConversation(p.user_id)}
+                    className={`w-full p-4 mb-2 rounded-2xl transition-all text-left flex items-center justify-between group border ${
+                      activeConversation === p.user_id ? 'bg-indigo-50 border-indigo-100 ring-1 ring-indigo-600/10' : 'bg-white border-transparent hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${
+                         activeConversation === p.user_id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'
+                      }`}>
+                        {(p.full_name || p.display_name)?.charAt(0).toUpperCase()}
                       </div>
-                      <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-muted-foreground">{conv.timestamp}</span>
-                        {conv.unread > 0 && (
-                          <span className="px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
-                            {conv.unread}
-                          </span>
-                        )}
+                      <div className="min-w-0">
+                        <h3 className={`font-bold truncate ${activeConversation === p.user_id ? 'text-indigo-900' : 'text-slate-900'}`}>
+                          {p.full_name || p.display_name}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {p.can_message ? (
+                            <span className="text-[10px] text-indigo-600 font-black uppercase tracking-wider bg-indigo-50/50 px-2 py-0.5 rounded-full border border-indigo-100">Messaging Open</span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">Restricted</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                    {activeConversation === p.user_id && <ChevronRight className="w-5 h-5 text-indigo-400" />}
+                  </button>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-24 text-slate-400 px-8 text-center italic">
+                  <MessageSquareOff className="w-10 h-10 mb-4 opacity-20" />
+                  No matching patients found in clinical registry
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Chat Area */}
-          <Card className="lg:col-span-2 h-[calc(100vh-300px)] flex flex-col">
-            {activeConversation ? (
+          {/* Secure Dialogue Column */}
+          <Card className="lg:col-span-2 rounded-3xl border-none shadow-sm flex flex-col overflow-hidden bg-white">
+            {activeConversation && currentPatient ? (
               <>
-                <CardHeader className="border-b border-border">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="text-3xl">
-                        {conversations.find(c => c.patientId === activeConversation)?.avatar}
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg">
-                          {conversations.find(c => c.patientId === activeConversation)?.patientName}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">Active now</p>
+                <CardHeader className="p-6 border-b border-slate-100 flex-row items-center justify-between bg-white shadow-sm z-10">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white text-lg shadow-md shadow-indigo-100">
+                      {(currentPatient.full_name || currentPatient.display_name)?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-slate-900 truncate">{currentPatient.full_name || currentPatient.display_name}</h3>
+                      <div className="flex items-center gap-2 text-xs font-bold text-emerald-500">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Live Protocol Channel
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/psychiatrist/patient/${activeConversation}`)}
-                      >
-                        View Profile
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      className="rounded-xl font-bold text-indigo-600 border-indigo-100 hover:bg-indigo-50 shadow-sm"
+                      onClick={() => navigate(`/psychiatrist/patient/${activeConversation}`)}
+                    >
+                      Medical Records
+                    </Button>
+                    <Button variant="outline" size="icon" className="rounded-xl text-slate-400 border-slate-200">
+                      <MoreVertical className="w-5 h-5" />
+                    </Button>
                   </div>
                 </CardHeader>
 
-                <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {messages
-                    .filter(m => m.patientId === activeConversation)
-                    .map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex ${msg.sender === 'psychiatrist' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-[70%] rounded-lg p-3 ${
-                            msg.sender === 'psychiatrist'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-foreground'
-                          }`}
-                        >
-                          <p className="text-sm">{msg.content}</p>
-                          <div className="flex items-center gap-1 mt-1">
-                            <span className="text-xs opacity-70">{msg.timestamp}</span>
-                            {msg.sender === 'psychiatrist' && (
-                              <CheckCheck className="w-3 h-3 opacity-70" />
-                            )}
-                          </div>
-                        </div>
+                <CardContent className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 bg-slate-50/10">
+                  {!currentPatient.can_message && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-4 text-amber-800 shadow-sm">
+                      <div className="p-2 bg-amber-100 rounded-xl mt-0.5">
+                        <MessageSquareOff className="w-5 h-5" />
                       </div>
-                    ))}
+                      <div>
+                        <p className="font-black text-sm uppercase tracking-wider mb-1">Communication Locked</p>
+                        <p className="text-sm font-medium opacity-80 leading-relaxed">Messaging for this patient has been restricted. You can restore access via the patient's Clinical Profile settings.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dialogue history placeholder */}
+                  <div className="flex flex-col items-center justify-center py-20 text-center opacity-50 grayscale">
+                     <div className="w-20 h-20 bg-indigo-50 rounded-[2rem] flex items-center justify-center mb-6">
+                       <MessageSquare className="w-10 h-10 text-indigo-600" />
+                     </div>
+                     <p className="font-serif text-2xl font-bold text-slate-900 mb-2">Secure Correspondence</p>
+                     <p className="max-w-xs font-medium text-slate-500 mx-auto">This clinical dialogue is end-to-end encrypted and logged for patient monitoring.</p>
+                  </div>
                 </CardContent>
 
-                <div className="p-4 border-t border-border">
-                  <div className="flex gap-2">
+                <div className="p-6 border-t border-slate-100 bg-white">
+                  <div className="flex gap-4">
                     <input
                       type="text"
-                      placeholder="Type a message..."
+                      placeholder={currentPatient.can_message ? "Send clinical response..." : "Enable messaging in profile..."}
+                      disabled={!currentPatient.can_message}
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                      className="flex-1 px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="flex-1 px-6 py-5 rounded-2xl border-none bg-slate-50 text-slate-900 focus:ring-2 focus:ring-indigo-600/20 font-medium disabled:bg-slate-100 disabled:opacity-50 transition-all shadow-inner"
                     />
-                    <Button onClick={handleSendMessage}>
-                      <Send className="w-4 h-4" />
+                    <Button 
+                      onClick={handleSendMessage} 
+                      disabled={!messageText.trim() || !currentPatient.can_message}
+                      className="bg-indigo-600 hover:bg-indigo-700 h-16 w-16 rounded-2xl shadow-xl shadow-indigo-100 transition-all p-0 flex items-center justify-center disabled:bg-slate-300 transform active:scale-95"
+                    >
+                      <Send className="w-7 h-7 text-white" />
                     </Button>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                Select a conversation to start messaging
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-white">
+                <div className="w-28 h-28 rounded-[2.5rem] bg-indigo-50 flex items-center justify-center mb-8 animate-in fade-in zoom-in duration-500">
+                  <MessageSquare className="w-14 h-14 text-indigo-300" />
+                </div>
+                <h3 className="text-3xl font-serif font-bold text-slate-900 mb-2 tracking-tight">Patient Correspondence</h3>
+                <p className="max-w-sm font-medium text-slate-500 leading-relaxed text-lg">Select a patient from the clinical registry on the left to review dialogue audit or initiate contact.</p>
               </div>
             )}
           </Card>

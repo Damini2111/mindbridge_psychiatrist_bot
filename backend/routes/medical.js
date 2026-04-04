@@ -1,27 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase');
+const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 
 /**
- * ── MEDICAL HISTORY & CLINICAL DATA (SUPABASE) ───────────────────────────
+ * ── MEDICAL HISTORY & CLINICAL DATA (MYSQL) ───────────────────────────
  */
 
 // Get user's full medical history
 router.get('/history', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
-        const { data, error } = await supabase
-            .from('medical_history')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false });
+        const userId = req.user.userId || req.user.id;
+        const [data] = await db.query(
+            'SELECT * FROM medical_history WHERE user_id = ? ORDER BY created_at DESC',
+            [userId]
+        );
 
-        if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
-        console.error('⚠️ Supabase Medical History Error:', error.message);
-        res.json({ success: true, data: [] });
+        console.error('❌ MySQL Medical History Error:', error.message);
+        res.status(500).json({ success: false, data: [], message: 'Failed to fetch medical history' });
     }
 });
 
@@ -29,24 +27,19 @@ router.get('/history', authenticate, async (req, res) => {
 router.post('/record', authenticate, async (req, res) => {
     try {
         const { condition, diagnosed_by, notes, status = 'Active', diagnosed_date } = req.body;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { data, error } = await supabase
-            .from('medical_history')
-            .insert([{
-                user_id: userId,
-                condition,
-                diagnosed_by,
-                notes,
-                status,
-                diagnosed_date
-            }])
-            .select();
+        const [result] = await db.query(
+            `INSERT INTO medical_history (user_id, \`condition\`, diagnosed_by, notes, status, diagnosed_date)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, condition, diagnosed_by, notes, status, diagnosed_date]
+        );
 
-        if (error) throw error;
-        res.json({ success: true, data: data[0] });
+        const [newRecord] = await db.query('SELECT * FROM medical_history WHERE id = ?', [result.insertId]);
+
+        res.json({ success: true, data: newRecord[0] });
     } catch (error) {
-        console.error('⚠️ Supabase Medical Record Error:', error.message);
+        console.error('❌ MySQL Medical Record Error:', error.message);
         res.status(500).json({ success: false, message: 'Failed to save record' });
     }
 });
@@ -54,17 +47,48 @@ router.post('/record', authenticate, async (req, res) => {
 // Get medication records
 router.get('/medication', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
-        const { data, error } = await supabase
-            .from('medications')
-            .select('*')
-            .eq('user_id', userId);
+        const userId = req.user.userId || req.user.id;
+        const [data] = await db.query(
+            'SELECT * FROM medications WHERE user_id = ?',
+            [userId]
+        );
 
-        if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
-        console.error('⚠️ Supabase Medication Error:', error.message);
-        res.json({ success: true, data: [] });
+        console.error('❌ MySQL Medication Error:', error.message);
+        res.status(500).json({ success: false, data: [], message: 'Failed to fetch medications' });
+    }
+});
+
+// Update/Sync full medical history from profile
+router.put('/sync', authenticate, async (req, res) => {
+    try {
+        const { conditions, medications, allergies, previousTherapy, notes } = req.body;
+        const userId = req.user.userId || req.user.id;
+
+        // We treat this as an upsert to a "primary" record for the user
+        // Check if a record exists
+        const [existing] = await db.query('SELECT id FROM medical_history WHERE user_id = ? LIMIT 1', [userId]);
+
+        if (existing.length > 0) {
+            await db.query(
+                `UPDATE medical_history SET 
+                 \`condition\` = ?, medications = ?, allergies = ?, previous_therapy = ?, notes = ?
+                 WHERE id = ?`,
+                [conditions, medications, allergies, previousTherapy, notes, existing[0].id]
+            );
+        } else {
+            await db.query(
+                `INSERT INTO medical_history (user_id, \`condition\`, medications, allergies, previous_therapy, notes)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [userId, conditions, medications, allergies, previousTherapy, notes]
+            );
+        }
+
+        res.json({ success: true, message: 'Medical history synchronized' });
+    } catch (error) {
+        console.error('❌ MySQL Medical Sync Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to sync medical history' });
     }
 });
 

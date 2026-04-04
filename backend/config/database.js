@@ -38,6 +38,9 @@ async function initializeDatabase() {
             role ENUM('user', 'psychiatrist', 'admin') DEFAULT 'user',
             psychiatrist_id INT NULL,
             phone VARCHAR(20),
+            gender VARCHAR(20),
+            dob DATE,
+            can_message TINYINT(1) DEFAULT 0,
             is_active TINYINT(1) DEFAULT 1,
             deleted_at TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -75,7 +78,11 @@ async function initializeDatabase() {
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
             score FLOAT NOT NULL,
-            source ENUM('chat', 'quiz', 'face') DEFAULT 'chat',
+            source ENUM('chat', 'quiz', 'face', 'manual') DEFAULT 'chat',
+            mood VARCHAR(100),
+            notes TEXT,
+            triggers TEXT,
+            activity_context TEXT,
             logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX (user_id, logged_at),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -85,10 +92,11 @@ async function initializeDatabase() {
         `CREATE TABLE IF NOT EXISTS quiz_results (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
-            quiz_id INT NOT NULL,
+            quiz_type VARCHAR(50) NOT NULL,
             score INT NOT NULL,
+            severity VARCHAR(50),
             answers JSON NULL,
-            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )`,
 
@@ -113,6 +121,91 @@ async function initializeDatabase() {
             theme ENUM('light', 'dark') DEFAULT 'light',
             notifications_enabled TINYINT(1) DEFAULT 1,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`,
+
+        // 8. Therapy Reminders
+        `CREATE TABLE IF NOT EXISTS therapy_reminders (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT,
+            reminder_time TIME,
+            reminder_days VARCHAR(100) DEFAULT 'Daily',
+            icon VARCHAR(50) DEFAULT '🔔',
+            color VARCHAR(20),
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`,
+
+        // 9. Medical History
+        `CREATE TABLE IF NOT EXISTS medical_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            \`condition\` TEXT,
+            medications TEXT,
+            allergies TEXT,
+            previous_therapy TEXT,
+            notes TEXT,
+            diagnosed_by VARCHAR(255),
+            status VARCHAR(50) DEFAULT 'Active',
+            diagnosed_date DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`,
+
+        // 10. Medications
+        `CREATE TABLE IF NOT EXISTS medications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            dosage VARCHAR(100),
+            frequency VARCHAR(100),
+            started_date DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`,
+
+        // 11. Game Sessions
+        `CREATE TABLE IF NOT EXISTS game_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            game_type VARCHAR(100) NOT NULL,
+            score INT DEFAULT 0,
+            duration_seconds INT DEFAULT 0,
+            level_reached INT DEFAULT 1,
+            moves_count INT DEFAULT 0,
+            completed TINYINT(1) DEFAULT 0,
+            stress_reduction FLOAT DEFAULT 0,
+            played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`,
+
+        // 12. User Profiles
+        `CREATE TABLE IF NOT EXISTS user_profiles (
+            user_id INT PRIMARY KEY,
+            city VARCHAR(100),
+            country VARCHAR(100),
+            emergency_contact_name VARCHAR(100),
+            emergency_contact_phone VARCHAR(20),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`,
+
+        // 13. Therapy Sessions (NEW)
+        `CREATE TABLE IF NOT EXISTS therapy_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            exercise_type VARCHAR(100) NOT NULL,
+            stress_before INT,
+            stress_after INT,
+            duration_seconds INT DEFAULT 0,
+            completion_percentage INT DEFAULT 0,
+            notes TEXT,
+            completed TINYINT(1) DEFAULT 0,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )`
     ];
 
@@ -120,9 +213,40 @@ async function initializeDatabase() {
         for (const query of queries) {
             await pool.query(query);
         }
+
+        // Migration: Check and add columns if they don't exist
+        const [columns] = await pool.query('SHOW COLUMNS FROM users');
+        const columnNames = columns.map((c) => c.Field);
+        
+        if (!columnNames.includes('gender')) {
+            await pool.query('ALTER TABLE users ADD COLUMN gender VARCHAR(20) AFTER phone');
+        }
+        if (!columnNames.includes('dob')) {
+            await pool.query('ALTER TABLE users ADD COLUMN dob DATE AFTER gender');
+        }
+        if (!columnNames.includes('can_message')) {
+            await pool.query('ALTER TABLE users ADD COLUMN can_message TINYINT(1) DEFAULT 0 AFTER dob');
+        }
+
+        // Migration for medical_history
+        const [medCols] = await pool.query('SHOW COLUMNS FROM medical_history');
+        const medColNames = medCols.map((c) => c.Field);
+        if (!medColNames.includes('medications')) {
+            await pool.query('ALTER TABLE medical_history ADD COLUMN medications TEXT AFTER \`condition\`');
+        }
+        if (!medColNames.includes('allergies')) {
+            await pool.query('ALTER TABLE medical_history ADD COLUMN allergies TEXT AFTER medications');
+        }
+        if (!medColNames.includes('previous_therapy')) {
+            await pool.query('ALTER TABLE medical_history ADD COLUMN previous_therapy TEXT AFTER allergies');
+        }
+
         console.log('✅ MindBridge Database initialized with PRD v1.0.0 schema');
     } catch (error) {
-        console.error('❌ Database Initialization Failed:', error.message);
+        console.error('❌ Database Initialization Failed!');
+        console.error('Error Code:', error.code);
+        console.error('Error Message:', error.message);
+        if (error.sql) console.error('Failed SQL:', error.sql);
         throw error;
     }
 }

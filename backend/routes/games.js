@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase');
+const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 
 // Save game session
@@ -15,33 +15,23 @@ router.post('/session', authenticate, async (req, res) => {
             completed, 
             stressReduction 
         } = req.body;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { data, error } = await supabase
-            .from('game_sessions')
-            .insert([{
-                user_id: userId,
-                game_type: gameType,
-                score,
-                duration_seconds: durationSeconds,
-                level_reached: levelReached,
-                moves_count: movesCount,
-                completed,
-                stress_reduction: stressReduction
-            }])
-            .select();
-
-        if (error) throw error;
+        const [result] = await db.query(
+            `INSERT INTO game_sessions (user_id, game_type, score, duration_seconds, level_reached, moves_count, completed, stress_reduction)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [userId, gameType, score, durationSeconds, levelReached, movesCount, completed ? 1 : 0, stressReduction]
+        );
 
         res.json({
             success: true,
-            sessionId: data[0].id
+            sessionId: result.insertId
         });
     } catch (error) {
-        console.error('⚠️ Supabase Game Save Error:', error.message);
-        res.status(200).json({ 
-            success: true, 
-            message: 'Game session handled in demo mode' 
+        console.error('❌ MySQL Game Save Error:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to save game session' 
         });
     }
 });
@@ -49,41 +39,38 @@ router.post('/session', authenticate, async (req, res) => {
 // Get game history
 router.get('/history', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
         const { gameType, limit = 20 } = req.query;
 
-        let query = supabase
-            .from('game_sessions')
-            .select('*')
-            .eq('user_id', userId)
-            .order('played_at', { ascending: false })
-            .limit(parseInt(limit));
+        let sql = 'SELECT * FROM game_sessions WHERE user_id = ?';
+        let params = [userId];
 
         if (gameType) {
-            query = query.eq('game_type', gameType);
+            sql += ' AND game_type = ?';
+            params.push(gameType);
         }
 
-        const { data: history, error } = await query;
-        if (error) throw error;
+        sql += ' ORDER BY played_at DESC LIMIT ?';
+        params.push(parseInt(limit));
+
+        const [history] = await db.query(sql, params);
 
         res.json({ success: true, data: history });
     } catch (error) {
-        console.error('⚠️ Supabase Game History Error:', error.message);
-        res.json({ success: true, data: [] });
+        console.error('❌ MySQL Game History Error:', error.message);
+        res.status(500).json({ success: false, data: [], message: 'Failed to fetch game history' });
     }
 });
 
 // Get game statistics
 router.get('/stats', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { data: stats, error } = await supabase
-            .from('game_sessions')
-            .select('game_type, score, duration_seconds, stress_reduction')
-            .eq('user_id', userId);
-
-        if (error) throw error;
+        const [stats] = await db.query(
+            'SELECT game_type, score, duration_seconds, stress_reduction FROM game_sessions WHERE user_id = ?',
+            [userId]
+        );
 
         const grouped = stats.reduce((acc, curr) => {
             if (!acc[curr.game_type]) {
@@ -98,8 +85,8 @@ router.get('/stats', authenticate, async (req, res) => {
 
         res.json({ success: true, data: Object.keys(grouped).map(k => ({ game_type: k, ...grouped[k] })) });
     } catch (error) {
-        console.error('⚠️ Supabase Game Stats Error:', error.message);
-        res.json({ success: true, data: [] });
+        console.error('❌ MySQL Game Stats Error:', error.message);
+        res.status(500).json({ success: false, data: [] });
     }
 });
 

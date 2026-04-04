@@ -1,88 +1,85 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase');
+const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 
 // Log stress level
 router.post('/log', authenticate, async (req, res) => {
     try {
-        const { stressLevel, mood, notes, triggers, activityContext } = req.body;
-        const userId = req.user.id;
+        const { stressLevel, mood, notes, triggers, activityContext, source = 'manual' } = req.body;
+        const userId = req.user.userId || req.user.id;
 
-        const { error } = await supabase
-            .from('stress_logs')
-            .insert([{
-                user_id: userId,
-                score: stressLevel,
-                mood,
-                notes,
-                triggers,
-                activity_context: activityContext
-            }]);
+        await db.query(
+            `INSERT INTO stress_logs (user_id, score, source, mood, notes, triggers, activity_context) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, stressLevel, source, mood, notes, triggers, activityContext]
+        );
 
-        if (error) throw error;
         res.json({ success: true, message: 'Stress level logged' });
     } catch (error) {
-        console.error('⚠️ Supabase Log Stress Error:', error.message);
-        res.json({ success: true });
+        console.error('❌ MySQL Log Stress Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to log stress level' });
     }
 });
 
 // Get stress history
 router.get('/history', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
         const { days = 30 } = req.query;
 
-        const { data: history, error } = await supabase
-            .from('stress_logs')
-            .select('*')
-            .eq('user_id', userId)
-            .order('logged_at', { ascending: false })
-            .limit(parseInt(days));
+        const [history] = await db.query(
+            `SELECT * FROM stress_logs 
+             WHERE user_id = ? 
+             ORDER BY logged_at DESC 
+             LIMIT ?`,
+            [userId, parseInt(days)]
+        );
 
-        if (error) throw error;
         res.json({ success: true, data: history });
     } catch (error) {
-        console.error('⚠️ Supabase History Error:', error.message);
-        res.json({ success: true, data: [] });
+        console.error('❌ MySQL History Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to fetch stress history', data: [] });
     }
 });
 
 // Get weekly stats
 router.get('/weekly', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { data: weeklyData, error } = await supabase
-            .from('stress_logs')
-            .select('logged_at, score')
-            .eq('user_id', userId)
-            .limit(10); // Simplified for Supabase REST
+        const [weeklyData] = await db.query(
+            `SELECT logged_at, score FROM stress_logs 
+             WHERE user_id = ? 
+             AND logged_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+             ORDER BY logged_at ASC`,
+            [userId]
+        );
 
-        if (error) throw error;
         res.json({ success: true, data: weeklyData });
     } catch (error) {
-        res.json({ success: true, data: [] });
+        console.error('❌ MySQL Weekly Stats Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to fetch weekly stats', data: [] });
     }
 });
 
-// Get current stress level
+// Get current (latest) stress level
 router.get('/current', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { data: current, error } = await supabase
-            .from('stress_logs')
-            .select('*')
-            .eq('user_id', userId)
-            .order('logged_at', { ascending: false })
-            .limit(1);
+        const [current] = await db.query(
+            `SELECT * FROM stress_logs 
+             WHERE user_id = ? 
+             ORDER BY logged_at DESC 
+             LIMIT 1`,
+            [userId]
+        );
 
-        if (error) throw error;
         res.json({ success: true, data: current.length > 0 ? current[0] : null });
     } catch (error) {
-        res.json({ success: true, data: null });
+        console.error('❌ MySQL Current Stress Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to fetch current stress level', data: null });
     }
 });
 

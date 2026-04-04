@@ -160,17 +160,19 @@ export default function StressQuiz() {
   const saveToBackend = async (r: Result) => {
     setSaving(true);
     try {
-      // Integration with new Schema Endpoint
-      await fetch(`${API}/chat/session/start`, {
+      // Primary Quiz Persistence
+      await fetch(`${API}/quiz/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({
-          moodBefore: r.label,
-          stressLevelBefore: r.percent,
+          quizType: 'STRESS_LEVEL',
+          answers: answers, // Stores the array of raw scores
+          score: r.score,
+          severity: r.level
         }),
       });
     } catch (e) {
-      console.error("Save failed:", e);
+      console.error("Quiz persistence failed:", e);
     } finally { setSaving(false); }
   };
 

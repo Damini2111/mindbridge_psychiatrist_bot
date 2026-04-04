@@ -1,270 +1,223 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
-import {
-  ArrowLeft,
-  Search,
-  Filter,
-  Users,
-  TrendingUp,
-  AlertTriangle,
-  MessageCircle,
-  FileText,
+import { 
+  Users, UserPlus, Search, Filter, Mail, 
+  Activity, AlertCircle, ShieldCheck, HeartPulse,
+  TrendingUp, AlertTriangle, Eye, ChevronRight
 } from 'lucide-react';
 
-interface Patient {
-  id: string;
-  name: string;
-  age: number;
-  phone: string;
-  email: string;
-  stressLevel: number;
-  lastSession: string;
-  status: 'stable' | 'monitoring' | 'critical' | 'in-session';
-  avatar: string;
-  riskLevel: 'low' | 'medium' | 'high';
-  conditions: string[];
-}
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const PatientManagement = () => {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [patients, setPatients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [stats, setStats] = useState({ total: 0, critical: 0, monitoring: 0, stable: 0 });
+  const token = localStorage.getItem('token');
 
-  const handleLogout = () => {
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userName');
-    navigate('/');
+  useEffect(() => { fetchPatients(); }, []);
+
+  const fetchPatients = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/psychiatrist/patients`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPatients(data.data);
+        setStats({
+          total: data.data.length,
+          critical: data.data.filter((u: any) => (u.latest_stress || 0) > 75).length,
+          monitoring: data.data.filter((u: any) => (u.latest_stress || 0) > 40 && (u.latest_stress || 0) <= 75).length,
+          stable: data.data.filter((u: any) => !(u.latest_stress || 0) || (u.latest_stress || 0) <= 40).length,
+        });
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
   };
 
-  const patients: Patient[] = [
-    { id: 'p-1', name: 'Sarah Johnson', age: 28, phone: '+1 (555) 100-0001', email: 'sarah.j@email.com', stressLevel: 35, lastSession: '2 hours ago', status: 'stable', avatar: '👩', riskLevel: 'low', conditions: ['Anxiety', 'Insomnia'] },
-    { id: 'p-2', name: 'Mike Chen', age: 34, phone: '+1 (555) 100-0002', email: 'mike.c@email.com', stressLevel: 72, lastSession: '1 day ago', status: 'monitoring', avatar: '👨', riskLevel: 'medium', conditions: ['Depression'] },
-    { id: 'p-3', name: 'Emily Davis', age: 45, phone: '+1 (555) 123-4567', email: 'emily.d@email.com', stressLevel: 88, lastSession: '3 hours ago', status: 'critical', avatar: '👩‍🦰', riskLevel: 'high', conditions: ['Severe Anxiety'] },
-    { id: 'p-4', name: 'James Wilson', age: 52, phone: '+1 (555) 100-0004', email: 'james.w@email.com', stressLevel: 45, lastSession: '5 hours ago', status: 'stable', avatar: '👴', riskLevel: 'low', conditions: ['Mild Depression'] },
-    { id: 'p-5', name: 'Lisa Anderson', age: 31, phone: '+1 (555) 100-0005', email: 'lisa.a@email.com', stressLevel: 65, lastSession: '1 day ago', status: 'monitoring', avatar: '👱‍♀️', riskLevel: 'medium', conditions: ['Anxiety'] },
-  ];
+  const filtered = patients.filter(p =>
+    (p.full_name || p.display_name)?.toLowerCase().includes(search.toLowerCase()) ||
+    p.email?.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const filteredPatients = patients.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || p.status === filterStatus;
-    return matchesSearch && matchesFilter;
-  });
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'critical': return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300';
-      case 'monitoring': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300';
-      case 'stable': return 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300';
-      case 'in-session': return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const getRiskColor = (risk: string) => {
-    switch (risk) {
-      case 'high': return 'text-red-500';
-      case 'medium': return 'text-yellow-500';
-      case 'low': return 'text-green-500';
-      default: return 'text-gray-500';
-    }
-  };
+  const handleLogout = () => { localStorage.clear(); navigate('/'); };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F8FAFC]">
       <Navbar userRole="psychiatrist" onLogout={handleLogout} />
-
-      <main className="container mx-auto px-4 py-8">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/psychiatrist')}
-          className="mb-6 gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </Button>
-
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+      
+      <main className="container mx-auto px-6 pt-40 pb-12 max-w-7xl">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
-            <h1 className="font-serif text-4xl font-bold text-foreground mb-2">Patient Management</h1>
-            <p className="text-muted-foreground">Manage and monitor your patients</p>
+            <h1 className="text-4xl font-serif font-bold text-slate-900 tracking-tight">Patient Management</h1>
+            <p className="text-slate-500 text-lg mt-2">Oversee and manage clinical records for your patient network.</p>
           </div>
-          <Button className="gap-2">
-            <Users className="w-4 h-4" />
-            Add New Patient
-          </Button>
+          <button 
+            onClick={() => navigate('/psychiatrist/add-patient')}
+            className="flex items-center gap-3 bg-indigo-600 text-white px-8 py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 font-bold"
+          >
+            <UserPlus className="w-5 h-5" /> Register New Patient
+          </button>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search patients..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div className="flex gap-2">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="all">All Status</option>
-                  <option value="stable">Stable</option>
-                  <option value="monitoring">Monitoring</option>
-                  <option value="critical">Critical</option>
-                  <option value="in-session">In Session</option>
-                </select>
-                <Button variant="outline" className="gap-2">
-                  <Filter className="w-4 h-4" />
-                  More Filters
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <Card className="rounded-3xl border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
+            <CardContent className="p-0">
+               <div className="p-8 bg-white flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Total Patients</p>
+                    <p className="text-4xl font-bold text-slate-900">{stats.total}</p>
+                  </div>
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 transition-transform group-hover:scale-110">
+                    <Users className="w-7 h-7" />
+                  </div>
+               </div>
+               <div className="h-1.5 bg-indigo-600" />
+            </CardContent>
+          </Card>
 
-        {/* Stats */}
-        <div className="grid md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Patients</p>
-                  <p className="text-2xl font-bold text-foreground">{patients.length}</p>
-                </div>
-                <Users className="w-8 h-8 text-primary" />
-              </div>
+          <Card className="rounded-3xl border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
+            <CardContent className="p-0">
+               <div className="p-8 bg-white flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">High Risk</p>
+                    <p className="text-4xl font-bold text-rose-600">{stats.critical}</p>
+                  </div>
+                  <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 transition-transform group-hover:scale-110">
+                    <AlertCircle className="w-7 h-7" />
+                  </div>
+               </div>
+               <div className="h-1.5 bg-rose-500" />
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Critical</p>
-                  <p className="text-2xl font-bold text-red-500">
-                    {patients.filter(p => p.status === 'critical').length}
-                  </p>
-                </div>
-                <AlertTriangle className="w-8 h-8 text-red-500" />
-              </div>
+
+          <Card className="rounded-3xl border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
+            <CardContent className="p-0">
+               <div className="p-8 bg-white flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Observation</p>
+                    <p className="text-4xl font-bold text-amber-600">{stats.monitoring}</p>
+                  </div>
+                  <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 transition-transform group-hover:scale-110">
+                    <Activity className="w-7 h-7" />
+                  </div>
+               </div>
+               <div className="h-1.5 bg-amber-500" />
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Monitoring</p>
-                  <p className="text-2xl font-bold text-yellow-500">
-                    {patients.filter(p => p.status === 'monitoring').length}
-                  </p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-yellow-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Stable</p>
-                  <p className="text-2xl font-bold text-green-500">
-                    {patients.filter(p => p.status === 'stable').length}
-                  </p>
-                </div>
-                <Users className="w-8 h-8 text-green-500" />
-              </div>
+
+          <Card className="rounded-3xl border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
+            <CardContent className="p-0">
+               <div className="p-8 bg-white flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Stable</p>
+                    <p className="text-4xl font-bold text-emerald-600">{stats.stable}</p>
+                  </div>
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 transition-transform group-hover:scale-110">
+                    <ShieldCheck className="w-7 h-7" />
+                  </div>
+               </div>
+               <div className="h-1.5 bg-emerald-500" />
             </CardContent>
           </Card>
         </div>
 
-        {/* Patient List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>All Patients ({filteredPatients.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {filteredPatients.map((patient) => (
-                <Card
-                  key={patient.id}
-                  className="cursor-pointer hover:shadow-md transition-all"
-                  onClick={() => navigate(`/psychiatrist/patient/${patient.id}`)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="text-4xl">{patient.avatar}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-foreground">{patient.name}</h3>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(patient.status)}`}>
-                            {patient.status}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span>{patient.age} years old</span>
-                          <span>•</span>
-                          <span>{patient.email}</span>
-                          <span>•</span>
-                          <span>Last session: {patient.lastSession}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          {patient.conditions.map((condition, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-muted rounded text-xs">
-                              {condition}
-                            </span>
-                          ))}
-                        </div>
+        {/* Search & Filter Bar */}
+        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 mb-8">
+          <div className="flex-1 relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <input 
+              type="text" 
+              placeholder="Search patients by name or email identifier..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600/20 text-slate-900 placeholder:text-slate-400 font-medium"
+            />
+          </div>
+          <button className="flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+            <Filter className="w-5 h-5" /> Filters
+          </button>
+        </div>
+
+        {/* Patient Grid */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="h-64 bg-white rounded-3xl border border-slate-200" />
+            ))}
+          </div>
+        ) : filtered.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((patient) => (
+              <Card 
+                key={patient.user_id}
+                onClick={() => navigate(`/psychiatrist/patient/${patient.user_id}`)}
+                className="rounded-3xl border-slate-200 hover:border-indigo-400 hover:shadow-xl transition-all cursor-pointer group bg-white"
+              >
+                <CardContent className="p-8">
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-2xl font-bold text-indigo-600">
+                      {(patient.full_name || patient.display_name || patient.email)?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest ${
+                        (patient.latest_stress || 0) > 75 ? 'bg-rose-100 text-rose-600' : 
+                        (patient.latest_stress || 0) > 40 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
+                      }`}>
+                        {(patient.latest_stress || 0) > 75 ? 'Critical' : (patient.latest_stress || 0) > 40 ? 'Monitoring' : 'Stable'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        {patient.full_name || patient.display_name || 'Unnamed Patient'}
+                      </h3>
+                      <p className="text-slate-500 flex items-center gap-2 mt-1 font-medium truncate">
+                        <Mail className="w-4 h-4" /> {patient.email}
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+                        <Activity className="w-4 h-4 text-slate-400" />
+                        <span>{patient.latest_stress || '0'}% Stress</span>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm text-muted-foreground">Risk:</span>
-                          <span className={`text-sm font-semibold ${getRiskColor(patient.riskLevel)}`}>
-                            {patient.riskLevel.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm text-muted-foreground">Stress:</span>
-                          <span className="text-sm font-semibold">{patient.stressLevel}%</span>
-                        </div>
-                        <div className="flex gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/psychiatrist/messages?patient=${patient.id}`);
-                            }}
-                          >
-                            <MessageCircle className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/psychiatrist/notes/${patient.id}`);
-                            }}
-                          >
-                            <FileText className="w-3 h-3" />
-                          </Button>
-                        </div>
+                      <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+                        <TrendingUp className="w-4 h-4 text-slate-400" />
+                        <span>Active</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-24 bg-white rounded-3xl border border-dashed border-slate-300">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+               <Users className="w-10 h-10 text-slate-300" />
             </div>
-          </CardContent>
-        </Card>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">No patients found</h3>
+            <p className="text-slate-500 max-w-sm mx-auto">
+              Your patient clinical registry is currently empty or matches no search results.
+            </p>
+            <button 
+              onClick={() => navigate('/psychiatrist/add-patient')}
+              className="mt-8 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold hover:bg-indigo-100 transition-colors"
+            >
+              + Add your first patient
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );

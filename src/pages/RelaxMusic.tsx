@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,6 +15,7 @@ interface Track {
   emoji: string;
   duration: string;
   gradient: string;
+  url: string;
 }
 
 const RelaxMusic = () => {
@@ -33,21 +34,53 @@ const RelaxMusic = () => {
     { id: 'ambient', label: 'Ambient', emoji: '✨' },
   ];
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (currentTrack) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = currentTrack.url;
+        audioRef.current.volume = (volume[0] || 70) / 100;
+        if (isPlaying) audioRef.current.play().catch(console.error);
+      } else {
+        audioRef.current = new Audio(currentTrack.url);
+        audioRef.current.volume = (volume[0] || 70) / 100;
+        audioRef.current.loop = true;
+        if (isPlaying) audioRef.current.play().catch(console.error);
+      }
+    }
+    return () => { if (audioRef.current) audioRef.current.pause(); };
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isPlaying) audioRef.current.play().catch(console.error);
+      else audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : (volume[0] || 70) / 100;
+    }
+  }, [volume, isMuted]);
+
   const tracks: Track[] = [
-    { id: '1', title: 'Ocean Waves', category: 'nature', emoji: '🌊', duration: '10:00', gradient: 'from-blue-400 to-cyan-500' },
-    { id: '2', title: 'Forest Birds', category: 'nature', emoji: '🐦', duration: '8:30', gradient: 'from-green-400 to-emerald-500' },
-    { id: '3', title: 'Gentle Rain', category: 'rain', emoji: '🌧️', duration: '15:00', gradient: 'from-gray-400 to-slate-500' },
-    { id: '4', title: 'Thunderstorm', category: 'rain', emoji: '⛈️', duration: '12:00', gradient: 'from-purple-400 to-violet-500' },
-    { id: '5', title: 'Zen Garden', category: 'meditation', emoji: '🪷', duration: '20:00', gradient: 'from-pink-400 to-rose-500' },
-    { id: '6', title: 'Deep Breathing', category: 'meditation', emoji: '🧘', duration: '5:00', gradient: 'from-teal-400 to-cyan-500' },
-    { id: '7', title: 'Cosmic Journey', category: 'ambient', emoji: '🌌', duration: '30:00', gradient: 'from-indigo-400 to-purple-500' },
-    { id: '8', title: 'Starlight', category: 'ambient', emoji: '⭐', duration: '25:00', gradient: 'from-amber-400 to-orange-500' },
-    { id: '9', title: 'Mountain Stream', category: 'nature', emoji: '🏔️', duration: '10:00', gradient: 'from-sky-400 to-blue-500' },
-    { id: '10', title: 'Night Crickets', category: 'nature', emoji: '🦗', duration: '12:00', gradient: 'from-lime-400 to-green-500' },
+    { id: '1', title: 'Ocean Waves', category: 'nature', emoji: '🌊', duration: '10:00', gradient: 'from-blue-400 to-cyan-500', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+    { id: '2', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', title: 'Forest Birds', category: 'nature', emoji: '🐦', duration: '8:30', gradient: 'from-green-400 to-emerald-500' },
+    { id: '3', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', title: 'Gentle Rain', category: 'rain', emoji: '🌧️', duration: '15:00', gradient: 'from-gray-400 to-slate-500' },
+    { id: '4', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3', title: 'Thunderstorm', category: 'rain', emoji: '⛈️', duration: '12:00', gradient: 'from-purple-400 to-violet-500' },
+    { id: '5', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3', title: 'Zen Garden', category: 'meditation', emoji: '🪷', duration: '20:00', gradient: 'from-pink-400 to-rose-500' },
+    { id: '6', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3', title: 'Deep Breathing', category: 'meditation', emoji: '🧘', duration: '5:00', gradient: 'from-teal-400 to-cyan-500' },
+    { id: '7', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3', title: 'Cosmic Journey', category: 'ambient', emoji: '🌌', duration: '30:00', gradient: 'from-indigo-400 to-purple-500' },
+    { id: '8', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3', title: 'Starlight', category: 'ambient', emoji: '⭐', duration: '25:00', gradient: 'from-amber-400 to-orange-500' },
+    { id: '9', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3', title: 'Mountain Stream', category: 'nature', emoji: '🏔️', duration: '10:00', gradient: 'from-sky-400 to-blue-500' },
+    { id: '10', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3', title: 'Night Crickets', category: 'nature', emoji: '🦗', duration: '12:00', gradient: 'from-lime-400 to-green-500' },
   ];
 
-  const filteredTracks = activeCategory === 'all' 
-    ? tracks 
+  const filteredTracks = activeCategory === 'all'
+    ? tracks
     : tracks.filter(t => t.category === activeCategory);
 
   const handleLogout = () => {
@@ -63,6 +96,48 @@ const RelaxMusic = () => {
 
   const togglePlay = () => {
     setIsPlaying(!isPlaying);
+  };
+
+  const handleNext = () => {
+    const idx = filteredTracks.findIndex(t => t.id === currentTrack?.id);
+    const next = filteredTracks[(idx + 1) % filteredTracks.length];
+    if (next) playTrack(next);
+  };
+
+  const handlePrev = () => {
+    const idx = filteredTracks.findIndex(t => t.id === currentTrack?.id);
+    const prev = filteredTracks[(idx - 1 + filteredTracks.length) % filteredTracks.length];
+    if (prev) playTrack(prev);
+  };
+
+  const handleShuffle = () => {
+    const random = filteredTracks[Math.floor(Math.random() * filteredTracks.length)];
+    if (random) playTrack(random);
+  };
+
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateDuration = () => setDuration(audio.duration);
+    audio.addEventListener('timeupdate', updateTime);
+    audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('ended', handleNext);
+    return () => {
+      audio.removeEventListener('timeupdate', updateTime);
+      audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('ended', handleNext);
+    };
+  }, [audioRef.current, filteredTracks, currentTrack]);
+
+  const formatTime = (s: number) => {
+    if (!s || isNaN(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
   };
 
   return (
@@ -85,8 +160,8 @@ const RelaxMusic = () => {
           <CardContent className="p-0">
             <div className={cn(
               'relative h-64 md:h-80 flex items-center justify-center transition-all duration-1000',
-              currentTrack 
-                ? `bg-gradient-to-br ${currentTrack.gradient}` 
+              currentTrack
+                ? `bg-gradient-to-br ${currentTrack.gradient}`
                 : 'bg-gradient-to-br from-primary/20 to-highlight/20'
             )}>
               {/* Animated circles */}
@@ -129,10 +204,10 @@ const RelaxMusic = () => {
               <div className="flex flex-col md:flex-row items-center gap-6">
                 {/* Main controls */}
                 <div className="flex items-center gap-4">
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" onClick={handleShuffle}>
                     <Shuffle className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" onClick={handlePrev}>
                     <SkipBack className="w-5 h-5" />
                   </Button>
                   <Button
@@ -147,7 +222,7 @@ const RelaxMusic = () => {
                       <Play className="w-6 h-6 ml-1" />
                     )}
                   </Button>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" onClick={handleNext}>
                     <SkipForward className="w-5 h-5" />
                   </Button>
                   <Button variant="ghost" size="icon">
@@ -164,8 +239,8 @@ const RelaxMusic = () => {
                     className="w-full"
                   />
                   <div className="flex justify-between mt-1">
-                    <span className="text-xs text-muted-foreground">0:00</span>
-                    <span className="text-xs text-muted-foreground">{currentTrack.duration}</span>
+                    <span className="text-xs text-muted-foreground">{formatTime(currentTime)}</span>
+                    <span className="text-xs text-muted-foreground">{formatTime(duration)}</span>
                   </div>
                 </div>
 

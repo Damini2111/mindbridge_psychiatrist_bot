@@ -5,15 +5,7 @@ const bodyParser = require('body-parser');
 require('dotenv').config();
 
 const app = express();
-const quizRoutes        = require('./routes/quiz');
-const adminRoutes       = require('./routes/admin');
-const psychiatristRoutes = require('./routes/psychiatrist');
-const medicalRoutes     = require('./routes/medical');
 
-app.use('/api/quiz',         quizRoutes);
-app.use('/api/admin',        adminRoutes);
-app.use('/api/psychiatrist', psychiatristRoutes);
-app.use('/api/medical',      medicalRoutes);
 // ============================================
 // MIDDLEWARE SETUP
 // ============================================
@@ -28,7 +20,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// CORS Configuration - Allow multiple origins
+// CORS Configuration
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
@@ -43,13 +35,10 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function(origin, callback) {
-        // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
-        
         if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
             callback(null, true);
         } else {
-            console.log('❌ CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -58,10 +47,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Handle preflight requests
 app.options('*', cors());
-
-// Body parser middleware
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -83,40 +69,44 @@ const testDatabaseConnection = async () => {
         await connection.ping();
         connection.release();
         console.log('✅ MySQL Database connected successfully');
-        console.log('📊 Database:', process.env.DB_NAME);
         return true;
     } catch (error) {
         console.error('❌ MySQL connection failed:', error.message);
-        console.error('⚠️  Make sure MySQL is running and credentials are correct');
         return false;
     }
 };
 
-// Test database connection on startup
 testDatabaseConnection();
 
 // ============================================
 // IMPORT ROUTES
 // ============================================
 const authRoutes = require('./routes/auth');
-const stressRoutes = require('./routes/stress');
-const reminderRoutes = require('./routes/reminders');
-const therapyRoutes = require('./routes/therapy');
-const gameRoutes = require('./routes/games');
-const chatRoutes = require('./routes/chat');
 const userRoutes = require('./routes/user');
-const medicalRoutesImport = require('./routes/medical');
+const stressRoutes = require('./routes/stress');
+const remindersRoutes = require('./routes/reminders');
+const therapyRoutes = require('./routes/therapy');
+const gamesRoutes = require('./routes/games');
+const chatRoutes = require('./routes/chat');
+const medicalRoutes = require('./routes/medical');
+const quizRoutes = require('./routes/quiz');
+const psychiatristRoutes = require('./routes/psychiatrist');
+const adminRoutes = require('./routes/admin');
 
 // ============================================
 // ROUTE REGISTRATION
 // ============================================
 app.use('/api/auth', authRoutes);
-app.use('/api/stress', stressRoutes);
-app.use('/api/reminders', reminderRoutes);
-app.use('/api/therapy', therapyRoutes);
-app.use('/api/games', gameRoutes);
-app.use('/api/chat', chatRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/stress', stressRoutes);
+app.use('/api/reminders', remindersRoutes);
+app.use('/api/therapy', therapyRoutes);
+app.use('/api/games', gamesRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/medical', medicalRoutes);
+app.use('/api/quiz', quizRoutes);
+app.use('/api/psychiatrist', psychiatristRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ============================================
 // HEALTH CHECK ENDPOINT

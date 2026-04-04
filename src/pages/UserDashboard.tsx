@@ -5,13 +5,14 @@ import {
 } from 'recharts';
 import { 
   Brain, Activity, MessageCircle, Gamepad2, Music, 
-  Sparkles, Camera, Zap, ShieldCheck, HeartPulse, ArrowRight, Loader2, Target, AlertTriangle, User, Moon
+  Sparkles, Camera, Zap, ShieldCheck, HeartPulse, ArrowRight, Loader2, Target, AlertTriangle, User, Moon, Bell, Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Navbar from '@/components/Navbar';
 import StressGauge from '@/components/StressGauge';
+import AddReminderModal from '@/components/AddReminderModal';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -25,6 +26,8 @@ const UserDashboard = () => {
     const navigate = useNavigate();
     const [userData, setUserData] = useState<any>(null);
     const [analytics, setAnalytics] = useState<any>(null);
+    const [reminders, setReminders] = useState<any[]>([]);
+    const [showAddReminder, setShowAddReminder] = useState(false);
     const [loading, setLoading] = useState(true);
     
     // Scanner States
@@ -33,9 +36,45 @@ const UserDashboard = () => {
     const [scanResult, setScanResult] = useState<any>(null);
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [currentStress, setCurrentStress] = useState(42);
+    const [lastNotifiedId, setLastNotifiedId] = useState<string | null>(null);
     
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    const playNotificationSound = () => {
+        try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High A
+            oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.5);
+            
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        } catch (e) {
+            console.error("Audio protocol failed:", e);
+        }
+    };
+
+    const fetchReminders = async () => {
+        try {
+            const res = await fetch(`${API}/reminders`, {
+                headers: { Authorization: `Bearer ${getToken()}` }
+            });
+            const data = await res.json();
+            if (data.success) setReminders(data.data);
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -51,6 +90,7 @@ const UserDashboard = () => {
                 setCurrentStress(profData.user.stress_level || 42);
             }
             if (analData.success) setAnalytics(analData.summary);
+            await fetchReminders();
         } catch (error) {
             console.error("Dashboard Feed Error:", error);
         } finally {
@@ -60,7 +100,33 @@ const UserDashboard = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+
+        // 🧠 NEURAL NOTIFICATION OBSERVER
+        const interval = setInterval(() => {
+            const now = new Date();
+            const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            
+            setReminders(prev => {
+                prev.forEach(rem => {
+                    if (rem.is_active && rem.reminder_time.substring(0, 5) === currentTime) {
+                        const notifyKey = `${rem.id}-${currentTime}`;
+                        if (lastNotifiedId !== notifyKey) {
+                            toast(rem.title, {
+                                description: rem.description || "Establish your routine baseline now.",
+                                icon: <Bell className="w-5 h-5 text-teal-600" />,
+                                duration: 10000,
+                            });
+                            playNotificationSound();
+                            setLastNotifiedId(notifyKey);
+                        }
+                    }
+                });
+                return prev;
+            });
+        }, 10000); // Check every 10 seconds
+
+        return () => clearInterval(interval);
+    }, [lastNotifiedId]);
 
     const startScan = async () => {
         setScanning(true);
@@ -298,6 +364,21 @@ const UserDashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 text-center">
                      {[
                         { icon: MessageCircle, title: 'AI Companion', path: '/chat', desc: 'Secure Neural Chat', color: 'bg-teal-50' },
+                        { 
+                            icon: HeartPulse, 
+                            title: 'Clinical Hub', 
+                            path: userData?.can_message ? '/clinical-chat' : '#', 
+                            desc: userData?.can_message ? 'Doctor Link Active' : 'Access Restricted', 
+                            color: userData?.can_message ? 'bg-emerald-50' : 'bg-rose-50',
+                            customButton: (
+                                <div className={cn(
+                                    "mt-4 py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-lg transition-all",
+                                    userData?.can_message ? "bg-emerald-500 shadow-emerald-200" : "bg-rose-500 shadow-rose-200 opacity-80"
+                                )}>
+                                    {userData?.can_message ? "Approved (Chat)" : "Auth Pending"}
+                                </div>
+                            )
+                        },
                         { icon: Gamepad2, title: 'Aura Arcade', path: '/games', desc: 'Clinical Relief Games', color: 'bg-emerald-50' },
                         { icon: HeartPulse, title: 'Bio-Sync', path: '/stress', desc: 'Clinical Biometrics', color: 'bg-rose-50' },
                         { icon: Music, title: 'Zen Audio', path: '/music', desc: 'Neural Wave Waves', color: 'bg-indigo-50' },
@@ -311,6 +392,7 @@ const UserDashboard = () => {
 								<h3 className="font-serif text-xl font-black italic text-slate-800 uppercase tracking-tighter transition-colors group-hover:text-teal-600 leading-none">{btn.title}</h3>
 								<p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-tight italic">"{btn.desc}"</p>
 							</div>
+                            {btn.customButton}
                         </Card>
                     ))}
                 </div>
@@ -322,31 +404,40 @@ const UserDashboard = () => {
                             <h2 className="text-4xl font-serif font-black italic text-slate-800 tracking-tight">Neural Reminders</h2>
                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-teal-600/60 leading-none">Establishing Routine Consistency...</p>
                         </div>
-                        <Button onClick={() => navigate('/notifications')} variant="ghost" className="rounded-full gap-2 text-slate-400 font-black tracking-widest uppercase text-[10px]">
-                            Manage Hub <ArrowRight size={14} />
+                        <Button onClick={() => setShowAddReminder(true)} className="rounded-full gap-2 text-teal-600 bg-teal-50 hover:bg-teal-100 font-black tracking-widest uppercase text-[10px] h-12 px-6 shadow-soft">
+                             <Plus size={16} /> Add Protocol
                         </Button>
                     </div>
 
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 text-left">
-                        {[
-                            { title: 'Zen Meditation', time: '08:00 AM', days: 'Daily', desc: '10min Deep Resonance', icon: Brain, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                            { title: 'Neural Scan', time: '12:00 PM', days: 'Mon, Wed, Fri', desc: 'Bio-Metric Baseline', icon: Camera, color: 'text-teal-600', bg: 'bg-teal-50' },
-                            { title: 'Clinical Rest', time: '10:30 PM', days: 'Daily', desc: 'Parasympathetic Prep', icon: Moon, color: 'text-sky-600', bg: 'bg-sky-50' },
-                        ].map((rem, i) => (
-                            <Card key={i} className="harmonic-glass-hover border-white p-8 flex items-center gap-6 group shadow-soft">
-                                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner shrink-0 group-hover:scale-110 transition-all", rem.bg)}>
-                                    <rem.icon className={cn("w-6 h-6", rem.color)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                        <h4 className="font-black text-slate-800 italic underline decoration-slate-200">{rem.title}</h4>
-                                        <Badge variant="outline" className="text-[8px] uppercase tracking-tighter px-2 border-slate-100">{rem.days}</Badge>
-                                    </div>
-                                    <p className="text-xl font-black text-slate-900 leading-none">{rem.time}</p>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">"{rem.desc}"</p>
-                                </div>
+                        {reminders.length === 0 ? (
+                            <Card className="lg:col-span-3 p-20 harmonic-glass border-dashed border-slate-200 flex flex-col items-center justify-center space-y-6 opacity-60">
+                                <Bell className="w-12 h-12 text-slate-300 animate-pulse" />
+                                <p className="text-sm font-black uppercase tracking-widest text-slate-400 italic">No Active Neural Protocols Synchronized</p>
                             </Card>
-                        ))}
+                        ) : (
+                            reminders.map((rem, i) => (
+                                <Card key={i} className={cn(
+                                    "harmonic-glass-hover border-white p-8 flex items-center gap-6 group shadow-soft relative overflow-hidden",
+                                    !rem.is_active && "opacity-50 grayscale"
+                                )}>
+                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner shrink-0 bg-teal-50 group-hover:scale-110 transition-all">
+                                        <span className="text-2xl">{rem.icon || '🔔'}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="font-black text-slate-800 italic underline decoration-slate-200">{rem.title}</h4>
+                                            <Badge variant="outline" className="text-[8px] uppercase tracking-tighter px-2 border-slate-100">{rem.reminder_days}</Badge>
+                                        </div>
+                                        <p className="text-xl font-black text-slate-900 leading-none">{rem.reminder_time.substring(0, 5)}</p>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">"{rem.description || 'Clinical Baseline'}"</p>
+                                    </div>
+                                    {!rem.is_active && (
+                                        <div className="absolute top-4 right-4 text-[8px] font-black uppercase text-rose-500 tracking-widest">Inactive</div>
+                                    )}
+                                </Card>
+                            ))
+                        )}
                     </div>
                 </section>
 
@@ -369,6 +460,13 @@ const UserDashboard = () => {
 					 </div>
 				</Card>
             </main>
+
+            {showAddReminder && (
+                <AddReminderModal 
+                    onClose={() => setShowAddReminder(false)} 
+                    onSuccess={fetchReminders} 
+                />
+            )}
         </div>
     );
 };

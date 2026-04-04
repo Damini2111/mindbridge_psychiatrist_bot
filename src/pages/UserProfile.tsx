@@ -16,6 +16,7 @@ import {
   Save,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface UserProfileData {
   name: string;
@@ -34,9 +35,13 @@ interface UserProfileData {
   };
 }
 
+const API = 'http://localhost:5000/api';
+const getToken = () => localStorage.getItem('token') || '';
+
 const UserProfile = () => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfileData>({
     name: '',
     email: '',
@@ -54,33 +59,110 @@ const UserProfile = () => {
     },
   });
 
-  useEffect(() => {
-    const storedProfile = localStorage.getItem('userProfile');
-    if (storedProfile) {
-      setProfile(JSON.parse(storedProfile));
-    } else {
-      const userName = localStorage.getItem('userName') || '';
-      setProfile((prev) => ({ ...prev, name: userName }));
+  const fetchProfile = async () => {
+    setLoading(true);
+    try {
+      // 1. Fetch Basic Profile
+      const res = await fetch(`${API}/user/profile`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        const u = data.user;
+        
+        // 2. Fetch Medical History
+        const medRes = await fetch(`${API}/medical/history`, {
+            headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const medData = await medRes.json();
+        const latestMed = medData.data?.[0] || {};
+
+        setProfile({
+          name: u.display_name || '',
+          email: u.email || '',
+          phone: u.phone || '',
+          gender: u.gender || '',
+          dateOfBirth: u.dob ? u.dob.split('T')[0] : '',
+          emergencyContact: u.emergency_contact_name || '',
+          emergencyPhone: u.emergency_contact_phone || '',
+          medicalHistory: {
+            conditions: latestMed.condition || '',
+            medications: latestMed.medications || '',
+            allergies: latestMed.allergies || '',
+            previousTherapy: latestMed.previous_therapy || '',
+            notes: latestMed.notes || '',
+          },
+        });
+      }
+    } catch (err) {
+      toast.error("Failed to sync with MindBridge cloud");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchProfile();
   }, []);
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
     localStorage.removeItem('userRole');
     localStorage.removeItem('userName');
     navigate('/');
   };
 
-  const handleSave = () => {
-    localStorage.setItem('userProfile', JSON.stringify(profile));
-    localStorage.setItem('userName', profile.name);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+        // 1. Save Profile
+        const res = await fetch(`${API}/user/profile`, {
+            method: 'PUT',
+            headers: { 
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${getToken()}` 
+            },
+            body: JSON.stringify({
+                name: profile.name,
+                phone: profile.phone,
+                gender: profile.gender,
+                dob: profile.dateOfBirth,
+                emergencyContactName: profile.emergencyContact,
+                emergencyContactPhone: profile.emergencyPhone
+            })
+        });
+
+        // 2. Save Medical History
+        await fetch(`${API}/medical/sync`, {
+            method: 'PUT',
+            headers: { 
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${getToken()}` 
+            },
+            body: JSON.stringify({
+                conditions: profile.medicalHistory.conditions,
+                medications: profile.medicalHistory.medications,
+                allergies: profile.medicalHistory.allergies,
+                previousTherapy: profile.medicalHistory.previousTherapy,
+                notes: profile.medicalHistory.notes
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            toast.success("Profile synchronized with database");
+            setIsEditing(false);
+            localStorage.setItem('userName', profile.name);
+        } else {
+            throw new Error(data.message);
+        }
+    } catch (err: any) {
+        toast.error(err.message || "Sync failed");
+    }
   };
 
   const handleCancel = () => {
-    const storedProfile = localStorage.getItem('userProfile');
-    if (storedProfile) {
-      setProfile(JSON.parse(storedProfile));
-    }
+    fetchProfile();
     setIsEditing(false);
   };
 

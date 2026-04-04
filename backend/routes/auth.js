@@ -2,21 +2,15 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const supabase = require('../config/supabase');
+const db = require('../config/database');
 
 /**
- * ── AUTH LIVE UPGRADE (SUPABASE v1.0) ──────────────────────────────────────
+ * ── AUTH SYSTEM (MYSQL v1.0) ─────────────────────────────────────────────
  */
-const mockUser = {
-    id: 1,
-    display_name: 'MindBridge Director',
-    email: 'admin@mindbridge.edu',
-    role: 'admin'
-};
 
 const generateToken = (user) => {
     return jwt.sign(
-        { id: user.id || user.user_id, email: user.email, role: user.role || 'user' },
+        { id: user.id, email: user.email, role: user.role || 'user' },
         process.env.JWT_SECRET || 'demo_secret',
         { expiresIn: '7d' }
     );
@@ -26,60 +20,91 @@ const generateToken = (user) => {
 router.post('/register', async (req, res) => {
     try {
         const { email, password, display_name, role = 'user' } = req.body;
+        
+        // Sanitize optional fields
+        const phone = req.body.phone || null;
+        const gender = req.body.gender || null;
+        const dob = req.body.dob || null;
+        
+        // Optional psychiatrist linking from token
+        let psychiatristId = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+            try {
+                const token = authHeader.split(' ')[1];
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'demo_secret');
+                if (decoded.role === 'psychiatrist') psychiatristId = decoded.id;
+            } catch (e) {}
+        }
+        
+        if (!email || !password || !display_name) {
+            return res.status(400).json({ success: false, message: 'All fields are required' });
+        }
+
         const passwordHash = await bcrypt.hash(password, 10);
 
-        const { data, error } = await supabase
-            .from('users')
-            .insert([{ 
-                email, 
-                password_hash: passwordHash, 
-                display_name, 
-                role 
-            }])
-            .select();
+        // Check if user already exists
+        const [existingUsers] = await db.query('SELECT id, psychiatrist_id FROM users WHERE email = ?', [email]);
+        if (existingUsers.length > 0) {
+            if (psychiatristId) {
+                // Update existing user and link to this psychiatrist
+                await db.query(
+                    'UPDATE users SET display_name = ?, phone = ?, gender = ?, dob = ?, psychiatrist_id = ? WHERE email = ?',
+                    [display_name, phone, gender, dob, psychiatristId, email]
+                );
+                return res.json({ success: true, message: 'Patient profile updated and linked', user: { id: existingUsers[0].id, email, display_name, role } });
+            }
+            return res.status(409).json({ success: false, message: 'User already exists' });
+        }
 
-        if (error) throw error;
-        
-        const newUser = data[0];
+        // Insert new user
+        const [result] = await db.query(
+            'INSERT INTO users (email, password_hash, display_name, role, phone, gender, dob, psychiatrist_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [email, passwordHash, display_name, role, phone, gender, dob, psychiatristId]
+        );
+
+        const userId = result.insertId;
+        const newUser = { id: userId, email, display_name, role };
         const token = generateToken(newUser);
+
         res.status(201).json({ success: true, token, user: newUser });
     } catch (error) {
-        console.warn("⚠️ Supabase Register Failed:", error.message);
-        const fallbackUser = { ...mockUser, display_name: req.body.display_name || 'Guest User', email: req.body.email, role: req.body.role || 'user' };
-        res.status(201).json({ success: true, token: generateToken(fallbackUser), user: fallbackUser });
+        console.error("❌ MySQL Register Error:", error.message);
+        res.status(500).json({ success: false, message: 'Registration failed', error: error.message });
     }
 });
 
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
     try {
-        const { email, password, role = 'user' } = req.body;
+        const { email, password } = req.body;
 
-        const { data: users, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', email);
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: 'Email and password are required' });
+        }
 
-        if (error || !users.length) throw new Error("User not found");
+        const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+
+        if (!users.length) {
+            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
 
         const user = users[0];
         const validPassword = await bcrypt.compare(password, user.password_hash);
         
-        if (!validPassword) throw new Error("Invalid credentials");
+        if (!validPassword) {
+            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
 
         const token = generateToken(user);
+        
+        // Remove password hash from response
+        delete user.password_hash;
+        
         res.json({ success: true, token, user });
     } catch (error) {
-        console.warn("⚠️ Supabase Login Failed:", error.message);
-        // Return a mock user based on the role requested by the frontend
-        const fallbackUser = { 
-            ...mockUser, 
-            email: req.body.email || 'guest@mindbridge.ai', 
-            role: req.body.role || 'user',
-            display_name: req.body.role === 'admin' ? 'System Administrator' : 
-                          req.body.role === 'psychiatrist' ? 'Healing Guide' : 'Zen Seeker'
-        };
-        res.json({ success: true, token: generateToken(fallbackUser), user: fallbackUser });
+        console.error("❌ MySQL Login Error:", error.message);
+        res.status(500).json({ success: false, message: 'Login failed', error: error.message });
     }
 });
 
@@ -92,19 +117,18 @@ router.get('/verify', async (req, res) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'demo_secret');
         
-        const { data: users, error } = await supabase
-            .from('users')
-            .select('id, email, display_name, role')
-            .eq('id', decoded.id);
+        const [users] = await db.query(
+            'SELECT id, email, display_name, role FROM users WHERE id = ?',
+            [decoded.id]
+        );
 
-        if (error || !users.length) {
-            // If user not found in DB but token was valid (e.g. from mock), return decoded info
-            return res.json({ success: true, user: decoded });
+        if (!users.length) {
+            return res.status(401).json({ success: false, message: 'User not found' });
         }
         
         res.json({ success: true, user: users[0] });
     } catch (error) {
-        res.json({ success: false, message: 'Invalid session' });
+        res.status(401).json({ success: false, message: 'Invalid session' });
     }
 });
 

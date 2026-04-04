@@ -8,7 +8,7 @@ const { authenticate } = require('../middleware/auth');
 router.post('/session/start', authenticate, async (req, res) => {
     try {
         const { exerciseType, stressBefore } = req.body;
-        const userId = req.user.userId;
+        const userId = req.user.userId || req.user.id;
 
         const [result] = await db.query(
             `INSERT INTO therapy_sessions 
@@ -34,14 +34,14 @@ router.post('/session/start', authenticate, async (req, res) => {
 router.put('/session/end', authenticate, async (req, res) => {
     try {
         const { sessionId, durationSeconds, stressAfter, completionPercentage, notes } = req.body;
-        const userId = req.user.userId;
+        const userId = req.user.userId || req.user.id;
 
         await db.query(
             `UPDATE therapy_sessions 
             SET duration_seconds = ?, stress_after = ?, 
                 completion_percentage = ?, notes = ?,
                 completed = TRUE, completed_at = NOW()
-            WHERE therapy_session_id = ? AND user_id = ?`,
+            WHERE id = ? AND user_id = ?`,
             [durationSeconds, stressAfter, completionPercentage, notes, sessionId, userId]
         );
 
@@ -58,7 +58,7 @@ router.put('/session/end', authenticate, async (req, res) => {
 // Get therapy history
 router.get('/history', authenticate, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.userId || req.user.id;
         const { limit = 20 } = req.query;
 
         const [history] = await db.query(
@@ -82,7 +82,7 @@ router.get('/history', authenticate, async (req, res) => {
 // Get therapy statistics
 router.get('/stats', authenticate, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.userId || req.user.id;
 
         const [stats] = await db.query(
             `SELECT 

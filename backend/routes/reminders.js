@@ -1,56 +1,45 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase');
+const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 
 // Create reminder
 router.post('/', authenticate, async (req, res) => {
     try {
         const { title, description, reminderTime, reminderDays, icon, color } = req.body;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { data, error } = await supabase
-            .from('therapy_reminders')
-            .insert([{
-                user_id: userId,
-                title,
-                description,
-                reminder_time: reminderTime,
-                reminder_days: reminderDays || 'Daily',
-                icon: icon || '🔔',
-                color
-            }])
-            .select();
-
-        if (error) throw error;
+        const [result] = await db.query(
+            `INSERT INTO therapy_reminders (user_id, title, description, reminder_time, reminder_days, icon, color)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, title, description, reminderTime, reminderDays || 'Daily', icon || '🔔', color]
+        );
 
         res.json({
             success: true,
             message: 'Reminder created',
-            reminderId: data[0].id
+            reminderId: result.insertId
         });
     } catch (error) {
-        console.error('⚠️ Supabase Create Reminder Error:', error.message);
-        res.status(200).json({ success: true, message: 'Mocking reminder creation' });
+        console.error('❌ MySQL Create Reminder Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to create reminder' });
     }
 });
 
 // Get all reminders
 router.get('/', authenticate, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { data: reminders, error } = await supabase
-            .from('therapy_reminders')
-            .select('*')
-            .eq('user_id', userId)
-            .order('reminder_time', { ascending: true });
+        const [reminders] = await db.query(
+            'SELECT * FROM therapy_reminders WHERE user_id = ? ORDER BY reminder_time ASC',
+            [userId]
+        );
 
-        if (error) throw error;
         res.json({ success: true, data: reminders });
     } catch (error) {
-        console.error('⚠️ Supabase Get Reminders Error:', error.message);
-        res.json({ success: true, data: [] });
+        console.error('❌ MySQL Get Reminders Error:', error.message);
+        res.status(500).json({ success: false, data: [], message: 'Failed to fetch reminders' });
     }
 });
 
@@ -58,28 +47,20 @@ router.get('/', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
         const { title, description, reminderTime, reminderDays, icon, color, isActive } = req.body;
 
-        const { error } = await supabase
-            .from('therapy_reminders')
-            .update({
-                title,
-                description,
-                reminder_time: reminderTime,
-                reminder_days: reminderDays,
-                icon,
-                color,
-                is_active: isActive
-            })
-            .eq('id', id)
-            .eq('user_id', userId);
+        await db.query(
+            `UPDATE therapy_reminders 
+             SET title = ?, description = ?, reminder_time = ?, reminder_days = ?, icon = ?, color = ?, is_active = ?
+             WHERE id = ? AND user_id = ?`,
+            [title, description, reminderTime, reminderDays, icon, color, isActive ? 1 : 0, id, userId]
+        );
 
-        if (error) throw error;
         res.json({ success: true, message: 'Reminder updated' });
     } catch (error) {
-        console.error('⚠️ Supabase Update Reminder Error:', error.message);
-        res.json({ success: true });
+        console.error('❌ MySQL Update Reminder Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to update reminder' });
     }
 });
 
@@ -87,19 +68,17 @@ router.put('/:id', authenticate, async (req, res) => {
 router.delete('/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
-        const { error } = await supabase
-            .from('therapy_reminders')
-            .delete()
-            .eq('id', id)
-            .eq('user_id', userId);
+        await db.query(
+            'DELETE FROM therapy_reminders WHERE id = ? AND user_id = ?',
+            [id, userId]
+        );
 
-        if (error) throw error;
         res.json({ success: true, message: 'Reminder deleted' });
     } catch (error) {
-        console.error('⚠️ Supabase Delete Reminder Error:', error.message);
-        res.json({ success: true });
+        console.error('❌ MySQL Delete Reminder Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to delete reminder' });
     }
 });
 

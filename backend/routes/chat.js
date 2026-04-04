@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('../config/supabase');
+const db = require('../config/database');
 const http = require('http');
 const { authenticate } = require('../middleware/auth');
 
 /**
  * ── OLLAMA LOCAL AI INTEGRATION (ATOMIC PULSE-OLLAMA v1.0) ──────────────────
- *    Calls the local Ollama API (http://localhost:11434)
  */
 
 const callOllama = (model, systemPrompt, userMessage, images = []) => {
@@ -61,6 +60,27 @@ const callOllama = (model, systemPrompt, userMessage, images = []) => {
 };
 
 /**
+ * ── AURA SESSIONS ──────────────────────────────────────────────────────────
+ */
+
+router.post('/session/start', authenticate, async (req, res) => {
+    try {
+        const { moodBefore, stressLevelBefore } = req.body;
+        const userId = req.user.userId || req.user.id;
+
+        const [result] = await db.query(
+            'INSERT INTO chat_sessions (user_id, avg_stress_score) VALUES (?, ?)',
+            [userId, stressLevelBefore]
+        );
+
+        res.json({ success: true, sessionId: result.insertId });
+    } catch (error) {
+        console.error('❌ MySQL Session Start Error:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to start neural session' });
+    }
+});
+
+/**
  * ── AURA VISION SCAN (OLLAMA LLAVA-SYNC) ───────────────────────────────────
  */
 router.post('/scan', authenticate, async (req, res) => {
@@ -68,6 +88,7 @@ router.post('/scan', authenticate, async (req, res) => {
         const { image } = req.body;
         if (!image) return res.status(400).json({ success: false, message: 'Bio-data required' });
         const base64Data = image.split(',')[1];
+        const userId = req.user.userId || req.user.id;
         
         let analysis;
         try {
@@ -79,11 +100,9 @@ router.post('/scan', authenticate, async (req, res) => {
             try {
                 aiRes = await callOllama('llava', systemPrompt, userMsg, [base64Data]);
             } catch (e) {
-                console.log("⚠️ Retrying with llava:latest...");
                 aiRes = await callOllama('llava:latest', systemPrompt, userMsg, [base64Data]);
             }
             
-            // ROBUST JSON EXTRACTION: Find the first { and the last }
             const jsonMatch = aiRes.match(/\{[\s\S]*\}/);
             if (!jsonMatch) throw new Error("No JSON found in AI response");
             
@@ -91,21 +110,19 @@ router.post('/scan', authenticate, async (req, res) => {
             console.log("✅ OLLAMA VISION SUCCESS");
         } catch (e) {
             console.warn("⚠️ Vision AI parse failed, using fallback:", e.message);
-            analysis = { mood: "Analyzing...", stress: 50, recommendation: "Relax and breath", insight: `Local AI: ${e.message}` };
+            analysis = { mood: "Unknown", stress: 50, recommendation: "Relax and breath", insight: `Local AI Analysis` };
         }
 
-        try { 
-            await supabase
-                .from('users')
-                .update({ 
-                    stress_level: analysis.stress, 
-                    last_analysis: new Date().toISOString() 
-                })
-                .eq('id', req.user.id);
-        } catch (e) {}
+        // Save to stress_logs
+        await db.query(
+            `INSERT INTO stress_logs (user_id, score, source, mood, notes) 
+             VALUES (?, ?, 'face', ?, ?)`,
+            [userId, analysis.stress, analysis.mood, analysis.insight]
+        );
 
         res.json({ success: true, analysis });
     } catch (error) {
+        console.error('Scan Error:', error.message);
         res.status(500).json({ success: false, message: "Interface resonance lost." });
     }
 });
@@ -113,40 +130,53 @@ router.post('/scan', authenticate, async (req, res) => {
 /**
  * ── AURA CHATBOT (OLLAMA TINYLLAMA-SYNC) ──────────────────────────────────
  */
-router.post('/ai', async (req, res) => {
+router.post('/ai', authenticate, async (req, res) => {
     try {
-        const { message } = req.body;
+        const { message, sessionId } = req.body;
+        const userId = req.user.userId || req.user.id;
         if (!message) return res.status(400).json({ success: false, message: 'Neural input missing' });
+
+        // 1. Save User Message
+        if (sessionId) {
+            await db.query(
+                'INSERT INTO messages (session_id, sender, content) VALUES (?, ?, ?)',
+                [sessionId, 'user', message]
+            );
+        }
 
         let reply;
         try {
-            console.log("🤖 Thinking with Ollama (Consultant Mode - Phi-3 Smart)...");
-            const systemPrompt = "You are Aura, a professional psychiatrist. Be clinical, empathetic, and direct. Respond only to the user's message and stay in character. Do not repeat the prompt.";
+            console.log("🤖 Thinking with Ollama...");
+            const systemPrompt = "You are Aura, a professional psychiatrist. Be clinical, empathetic, and direct. Respond only to the user's message and stay in character.";
             
-            // 🌐 UNIVERSAL AI FALLBACK CHAIN (MindBridge Omni-Model Search)
-            let modelsToTry = ['phi3', 'phi3:latest', 'phi3:mini', 'phi3:small', 'llama3', 'llama3:latest', 'mistral', 'gemma', 'tinyllama'];
-            
+            let modelsToTry = ['phi3', 'llama3', 'mistral', 'tinyllama'];
             for (let modelName of modelsToTry) {
                 try {
-                    console.log(`🤖 Neural Bridge: Attempting connection via ${modelName}...`);
                     reply = await callOllama(modelName, systemPrompt, message);
-                    console.log(`✅ SUCCESS: Neural resonance established with [${modelName}]`);
-                    break; // STOP ONCE WE FIND A WORKING MODEL
-                } catch (e) {
-                    continue; // TRY NEXT
-                }
+                    break;
+                } catch (e) { continue; }
             }
 
-            if (!reply) throw new Error("No neural model found. Please run 'ollama run phi3'");
-            console.log("✅ OLLAMA CHAT SUCCESS");
+            if (!reply) throw new Error("No neural model found");
         } catch (aiErr) {
-            console.error("❌ Ollama Chat Error:", aiErr.message);
-            reply = `Aura System Diagnostic: [Local AI Link Blocked]. ${aiErr.message}`;
+            reply = `Neural Link Buffered: I am listening. [Diagnostic: ${aiErr.message}]`;
         }
+
+        // 2. Save Bot Reply
+        if (sessionId) {
+            await db.query(
+                'INSERT INTO messages (session_id, sender, content) VALUES (?, ?, ?)',
+                [sessionId, 'bot', reply]
+            );
+        }
+
         res.json({ success: true, reply: reply.trim() });
     } catch (error) {
+        console.error('Chat AI Error:', error.message);
         res.json({ success: true, reply: "I am listening. Re-establishing local neural bridge..." });
     }
 });
+
+module.exports = router;
 
 module.exports = router;

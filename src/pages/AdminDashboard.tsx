@@ -1,235 +1,253 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
-} from 'recharts';
-import { 
-  Users, Stethoscope, Activity, TrendingUp, AlertCircle, 
-  Search, Shield, Lock, ArrowRight, Server, Database, Settings,
-  CheckCircle2, XCircle
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { Users, Trash2, Search, UserCheck, UserX, RefreshCw } from 'lucide-react';
 
-const API = 'http://localhost:5000/api';
-const getToken = () => localStorage.getItem('token') || '';
-
-const GROWTH_DATA = [
-    { date: '2024-03-25', users: 120 },
-    { date: '2024-03-26', users: 145 },
-    { date: '2024-03-27', users: 180 },
-    { date: '2024-03-28', users: 210 },
-    { date: '2024-03-29', users: 240 },
-    { date: '2024-03-30', users: 290 },
-    { date: '2024-03-31', users: 350 },
-];
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const [users, setUsers] = useState<any[]>([]);
-    const [alerts, setAlerts] = useState<any[]>([]);
+    const [search, setSearch] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [stats, setStats] = useState({ total: 0, users: 0, psychiatrists: 0, admins: 0 });
+    const [actionLoading, setActionLoading] = useState<number | null>(null);
+    const [toast, setToast] = useState('');
+    const token = localStorage.getItem('token');
 
-    const fetchData = async () => {
-        try {
-            const [uRes, aRes] = await Promise.all([
-                fetch(`${API}/admin/users`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-                fetch(`${API}/admin/alerts`, { headers: { Authorization: `Bearer ${getToken()}` } })
-            ]);
-            const uData = await uRes.json();
-            const aData = await aRes.json();
+    useEffect(() => { fetchUsers(); }, []);
 
-            if (uData.success) setUsers(uData.data);
-            if (aData.success) setAlerts(aData.data);
-        } catch (err) {
-            console.error("Admin fetch failed", err);
-        } finally {
-            setLoading(false);
-        }
+    const showToast = (msg: string) => {
+        setToast(msg);
+        setTimeout(() => setToast(''), 3000);
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const toggleUserStatus = async (userId: number, currentStatus: number) => {
+    const fetchUsers = async () => {
+        setLoading(true);
         try {
-            await fetch(`${API}/admin/users/${userId}/status`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-                body: JSON.stringify({ isActive: currentStatus ? 0 : 1 })
+            const res = await fetch(`${API_URL}/users/all`, {
+                headers: { Authorization: `Bearer ${token}` },
             });
-            toast.success("Node Resonance Updated");
-            fetchData();
-        } catch (err) {
-            toast.error("Status update failed");
-        }
+            const data = await res.json();
+            if (data.success) {
+                setUsers(data.data);
+                setStats({
+                    total: data.data.length,
+                    users: data.data.filter((u: any) => u.role === 'user').length,
+                    psychiatrists: data.data.filter((u: any) => u.role === 'psychiatrist').length,
+                    admins: data.data.filter((u: any) => u.role === 'admin').length,
+                });
+            }
+        } catch (e) { console.error(e); }
+        setLoading(false);
     };
 
-    const handleLogout = () => {
-        localStorage.clear();
-        navigate('/');
+    const updateRole = async (userId: number, newRole: string) => {
+        setActionLoading(userId);
+        try {
+            const res = await fetch(`${API_URL}/users/role`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ userId, role: newRole }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
+                showToast(`Role updated to ${newRole}`);
+            }
+        } catch (e) { console.error(e); }
+        setActionLoading(null);
     };
 
-    if (loading) return (
-        <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
-            <div className="flex flex-col items-center gap-8">
-                <div className="w-24 h-24 rounded-full bg-teal-50 flex items-center justify-center animate-pulse">
-                    <Shield className="w-12 h-12 text-teal-600 animate-float-harmonic" />
-                </div>
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-teal-700/50">Accessing Nexus Hub Assets...</p>
-            </div>
-        </div>
-    );
+    const toggleActive = async (userId: number, current: boolean) => {
+        setActionLoading(userId);
+        try {
+            const res = await fetch(`${API_URL}/users/toggle`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ userId, isActive: !current }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, is_active: !current } : u));
+                showToast(`User ${!current ? 'activated' : 'deactivated'}`);
+            }
+        } catch (e) { console.error(e); }
+        setActionLoading(null);
+    };
 
-    const filteredUsers = users.filter(u => 
-        u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const deleteUser = async (userId: number) => {
+        if (!confirm('Are you sure?')) return;
+        setActionLoading(userId);
+        try {
+            const res = await fetch(`${API_URL}/users/delete/${userId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUsers(prev => prev.filter(u => u.user_id !== userId));
+                showToast('User deleted');
+            }
+        } catch (e) { console.error(e); }
+        setActionLoading(null);
+    };
+
+    const filtered = users.filter(u => {
+        const matchSearch = u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+            u.email?.toLowerCase().includes(search.toLowerCase());
+        const matchRole = roleFilter === 'all' || u.role === roleFilter;
+        return matchSearch && matchRole;
+    });
+
+    const roleColors: Record<string, string> = {
+        user: 'bg-blue-100 text-blue-700',
+        psychiatrist: 'bg-purple-100 text-purple-700',
+        admin: 'bg-orange-100 text-orange-700',
+    };
+
+    const handleLogout = () => { localStorage.clear(); navigate('/'); };
 
     return (
-        <div className="min-h-screen relative selection:bg-teal-100 selection:text-teal-900 pt-48 pb-20 overflow-hidden bg-[#fafafa]">
+        <div className="min-h-screen bg-background">
             <Navbar userRole="admin" onLogout={handleLogout} />
-            <div className="fixed inset-0 z-0 bg-[#fafafa]" />
 
-            {/* 🛡️ SYSTEM AUTHORITY BRANDING ── INSTANT SEPARATION */}
-            <div className="fixed top-24 left-0 right-0 z-40 px-6 animate-slide-down pointer-events-none">
-                <div className="container mx-auto flex justify-end">
-                    <div className="harmonic-glass border-amber-500/20 bg-amber-50/80 px-8 py-3 rounded-2xl flex items-center gap-4 shadow-xl backdrop-blur-xl border-l-[6px] border-l-amber-600">
-                        <div className="w-10 h-10 rounded-xl bg-amber-600 flex items-center justify-center shadow-lg">
-                            <Shield className="w-5 h-5 text-white animate-pulse" />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-700/60 leading-none mb-1">System Authoritative</p>
-                            <h3 className="text-lg font-black text-slate-800 tracking-tighter italic">NEXUS MASTER <span className="text-amber-600">(ADMIN)</span></h3>
-                        </div>
-                    </div>
+            {toast && (
+                <div className="fixed top-4 right-4 bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg z-50 text-sm">
+                    ✅ {toast}
                 </div>
-            </div>
+            )}
 
-            <main className="container mx-auto px-6 space-y-16 relative z-10">
-                
-                <header className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-12 text-center lg:text-left">
-                    <div className="space-y-6">
-                        <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full harmonic-glass border-white/50 text-[10px] font-black uppercase tracking-widest text-teal-700 shadow-soft">
-                            <Lock className="w-4 h-4 text-emerald-500" />
-                            System Authority: SuperNexus
-                        </div>
-                        <h1 className="text-6xl lg:text-8xl font-serif font-black tracking-tighter text-slate-900 leading-tight italic">
-                            MindBridge <span className="text-aura-gradient not-italic">Nexus Control</span>
-                        </h1>
-                        <p className="text-xl text-slate-500 font-medium max-w-2xl mx-auto lg:mx-0">
-                            Overseeing <span className="text-teal-600 font-black underline decoration-teal-200">{users.length} neural nodes</span>. 
-                            Global system stability at <span className="text-emerald-600 font-black">99.98%</span>.
-                        </p>
-                    </div>
+            <main className="container mx-auto px-4 py-6 max-w-6xl">
+                <div className="mb-8">
+                    <h1 className="text-3xl font-serif font-bold">Admin Dashboard 🛡️</h1>
+                    <p className="text-muted-foreground mt-1">Manage all users, roles and system access</p>
+                </div>
 
-                    <div className="flex flex-wrap justify-center lg:justify-end gap-6 h-fit pt-4 text-left">
-                        <Button variant="outline" className="h-16 w-16 rounded-2xl border-white bg-white/50 backdrop-blur-md shadow-harmonic hover:bg-white active:scale-95 transition-all">
-                            <Settings className="w-6 h-6 text-teal-600" />
-                        </Button>
-                        <Button className="btn-aura h-16 px-12 text-xs shadow-2xl">
-                            Generate Audit Resonance
-                            <ArrowRight className="ml-3 w-5 h-5" />
-                        </Button>
-                    </div>
-                </header>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-left">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     {[
-                        { label: 'Collective Pulse', val: users.length * 12, change: '+24%', icon: Activity, color: 'bg-teal-50', text: 'text-teal-600' },
-                        { label: 'Clinical Anchors', val: users.filter(u => u.role === 'psychiatrist').length, change: '+2', icon: Stethoscope, color: 'bg-emerald-50', text: 'text-emerald-600' },
-                        { label: 'Sync Latency', val: '12ms', change: 'Stable', icon: Server, color: 'bg-sky-50', text: 'text-sky-600' },
-                        { label: 'Security Alerts', val: alerts.length, change: 'Active', icon: Shield, color: 'bg-rose-50', text: 'text-rose-600' },
-                    ].map((stat, i) => (
-                        <Card key={i} className="hover:bg-white/60 border-white/60 p-8 space-y-6 animate-fade-in text-left rounded-[3rem] shadow-soft transition-all duration-700 hover:-translate-y-4" style={{ animationDelay: `${i * 0.1}s` }}>
-                            <div className="flex items-center justify-between">
-                                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner border border-white/50", stat.color)}>
-                                    <stat.icon className={cn("w-7 h-7", stat.text)} />
-                                </div>
-                                <span className="text-[10px] font-black bg-white/50 px-3 py-1.5 rounded-full text-slate-500 border border-white shadow-soft">{stat.change}</span>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-5xl font-black tracking-tighter text-slate-900">{stat.val}</p>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
-                            </div>
+                        { label: 'Total Users', value: stats.total, bg: 'bg-blue-50', icon: '👥' },
+                        { label: 'Patients', value: stats.users, bg: 'bg-teal-50', icon: '🧘' },
+                        { label: 'Psychiatrists', value: stats.psychiatrists, bg: 'bg-purple-50', icon: '🩺' },
+                        { label: 'Admins', value: stats.admins, bg: 'bg-orange-50', icon: '⚙️' },
+                    ].map(s => (
+                        <Card key={s.label}>
+                            <CardContent className={`p-5 ${s.bg} rounded-xl`}>
+                                <p className="text-2xl">{s.icon}</p>
+                                <p className="text-2xl font-bold mt-1">{s.value}</p>
+                                <p className="text-sm text-muted-foreground">{s.label}</p>
+                            </CardContent>
                         </Card>
                     ))}
                 </div>
 
-                <Tabs defaultValue="management" className="space-y-16">
-                    <TabsList className="bg-white/40 p-2 rounded-[2.5rem] border border-white/60 backdrop-blur-3xl w-fit shadow-harmonic mx-auto lg:mx-0">
-                        <TabsTrigger value="management" className="rounded-[2rem] px-12 py-4 data-[state=active]:bg-white data-[state=active]:shadow-soft font-black text-xs uppercase tracking-widest text-slate-500 data-[state=active]:text-teal-600 transition-all italic">Ecosystem Node Map</TabsTrigger>
-                        <TabsTrigger value="intelligence" className="rounded-[2rem] px-12 py-4 data-[state=active]:bg-white data-[state=active]:shadow-soft font-black text-xs uppercase tracking-widest text-slate-500 data-[state=active]:text-teal-600 transition-all italic">Anomalies</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="management" className="animate-fade-in space-y-12">
-                        <section className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-4 text-left">
-                            <h2 className="text-4xl font-serif font-black tracking-tight text-slate-900 italic">Neural Node Distribution</h2>
-                            <div className="relative shadow-harmonic rounded-[2rem] group">
-                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-hover:text-teal-500 transition-colors" />
-                                <input 
-                                    placeholder="Search neural identifiers..." 
-                                    className="input-resonance pl-14 w-[360px] text-xs h-14"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
+                <Card>
+                    <CardHeader>
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <CardTitle className="flex items-center gap-2">
+                                <Users className="w-5 h-5" /> User Management
+                            </CardTitle>
+                            <div className="flex gap-3 flex-wrap">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <input value={search} onChange={e => setSearch(e.target.value)}
+                                        placeholder="Search users..."
+                                        className="pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-56" />
+                                </div>
+                                <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+                                    className="px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none">
+                                    <option value="all">All Roles</option>
+                                    <option value="user">Patients</option>
+                                    <option value="psychiatrist">Psychiatrists</option>
+                                    <option value="admin">Admins</option>
+                                </select>
+                                <button onClick={fetchUsers}
+                                    className="flex items-center gap-1 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">
+                                    <RefreshCw className="w-4 h-4" /> Refresh
+                                </button>
                             </div>
-                        </section>
-
-                        <Card className="harmonic-glass border-white/60 shadow-harmonic overflow-hidden p-0 text-left backdrop-blur-3xl">
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {loading ? (
+                            <div className="flex items-center justify-center h-40">
+                                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        ) : filtered.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">
+                                <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p>No users found</p>
+                            </div>
+                        ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full">
+                                <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="bg-slate-50/30">
-                                            {['Neural Node', 'Role Designation', 'Security Status', 'Action Command'].map((h, i) => (
-                                                <th key={i} className="text-left p-8 text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">{h}</th>
-                                            ))}
+                                        <tr className="border-b border-border text-muted-foreground text-left">
+                                            <th className="pb-3 font-medium">User</th>
+                                            <th className="pb-3 font-medium">Role</th>
+                                            <th className="pb-3 font-medium">Status</th>
+                                            <th className="pb-3 font-medium">Stress</th>
+                                            <th className="pb-3 font-medium">Joined</th>
+                                            <th className="pb-3 font-medium">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {filteredUsers.map((user, i) => (
-                                            <tr key={i} className="group hover:bg-teal-50/30 transition-colors duration-500 cursor-pointer">
-                                                <td className="p-8">
-                                                    <div className="flex items-center gap-6">
-                                                        <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 shadow-soft flex items-center justify-center font-black text-teal-600 text-xs">#{(i+1).toString().padStart(2, '0')}</div>
-                                                        <div className="space-y-1">
-                                                            <p className="font-black text-slate-900 text-lg">{user.full_name || 'Anonymous Node'}</p>
-                                                            <p className="text-xs text-slate-400 font-medium">{user.email}</p>
+                                    <tbody className="divide-y divide-border">
+                                        {filtered.map(user => (
+                                            <tr key={user.user_id} className="hover:bg-muted/30 transition-colors">
+                                                <td className="py-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary text-sm">
+                                                            {user.full_name?.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium text-foreground">{user.full_name}</p>
+                                                            <p className="text-xs text-muted-foreground">{user.email}</p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-8">
-                                                    <Badge variant="outline" className={cn(
-                                                        "rounded-full px-5 py-1.5 font-black text-[10px] uppercase tracking-widest border border-white shadow-soft",
-                                                        user.role === 'admin' ? "bg-amber-50 text-amber-700" : 
-                                                        user.role === 'psychiatrist' ? "bg-indigo-50 text-indigo-700" : "bg-emerald-50 text-emerald-700"
-                                                    )}>
-                                                        {user.role}
-                                                    </Badge>
+                                                <td className="py-3">
+                                                    <select value={user.role}
+                                                        onChange={e => updateRole(user.user_id, e.target.value)}
+                                                        disabled={actionLoading === user.user_id}
+                                                        className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${roleColors[user.role]}`}>
+                                                        <option value="user">Patient</option>
+                                                        <option value="psychiatrist">Psychiatrist</option>
+                                                        <option value="admin">Admin</option>
+                                                    </select>
                                                 </td>
-                                                <td className="p-8">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={cn("w-2.5 h-2.5 rounded-full", user.is_active ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse' : 'bg-rose-500')} />
-                                                        <span className="text-sm font-black text-slate-600">{user.is_active ? 'Optimal Resonance' : 'Connection Blocked'}</span>
-                                                    </div>
+                                                <td className="py-3">
+                                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {user.is_active ? 'Active' : 'Inactive'}
+                                                    </span>
                                                 </td>
-                                                <td className="p-8 text-right">
-                                                    <div className="flex justify-end gap-4 opacity-0 group-hover:opacity-100 transition-all duration-500">
-                                                        <Button 
-                                                            onClick={() => toggleUserStatus(user.user_id, user.is_active)}
-                                                            variant="outline" 
-                                                            className="h-10 rounded-xl border-white/60 bg-white/50 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-white shadow-soft transition-all"
-                                                        >
-                                                            {user.is_active ? <XCircle className="mr-2 w-4 h-4 text-rose-500" /> : <CheckCircle2 className="mr-2 w-4 h-4 text-emerald-500" />}
-                                                            {user.is_active ? 'Deactivate' : 'Activate'}
-                                                        </Button>
+                                                <td className="py-3">
+                                                    <span className={`text-xs font-semibold ${!user.latest_stress ? 'text-muted-foreground' :
+                                                            user.latest_stress > 60 ? 'text-red-500' :
+                                                                user.latest_stress > 30 ? 'text-yellow-500' : 'text-green-500'
+                                                        }`}>
+                                                        {user.latest_stress ? `${user.latest_stress}` : 'No data'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 text-muted-foreground text-xs">
+                                                    {new Date(user.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => toggleActive(user.user_id, user.is_active)}
+                                                            disabled={actionLoading === user.user_id}
+                                                            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+                                                            title={user.is_active ? 'Deactivate' : 'Activate'}>
+                                                            {user.is_active
+                                                                ? <UserX className="w-4 h-4 text-yellow-500" />
+                                                                : <UserCheck className="w-4 h-4 text-green-500" />}
+                                                        </button>
+                                                        <button onClick={() => deleteUser(user.user_id)}
+                                                            disabled={actionLoading === user.user_id}
+                                                            className="p-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                                                            <Trash2 className="w-4 h-4 text-red-500" />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -237,60 +255,8 @@ const AdminDashboard = () => {
                                     </tbody>
                                 </table>
                             </div>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="intelligence" className="animate-fade-in space-y-12">
-                         <Card className="harmonic-glass border-white/60 p-10 space-y-8 bg-rose-50/20 backdrop-blur-3xl shadow-harmonic text-left">
-                            <CardTitle className="text-3xl font-serif font-black flex gap-4 items-center text-rose-600 italic">
-                                <AlertCircle className="w-8 h-8" />
-                                Security Anomalies ({alerts.length})
-                            </CardTitle>
-                            <div className="space-y-6">
-                                {alerts.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-20 opacity-40">
-                                        <Shield className="w-16 h-16 text-rose-300 animate-float-harmonic" />
-                                        <p className="mt-6 text-[10px] font-black uppercase tracking-[0.5em]">Integrity Protocol Normalized</p>
-                                    </div>
-                                ) : (
-                                    alerts.map((alert, i) => (
-                                        <div key={i} className="p-8 rounded-[3rem] bg-white text-left border border-white flex gap-6 items-center shadow-harmonic group transition-all hover:-translate-x-2">
-                                            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center border border-rose-100">
-                                                <AlertCircle className="w-6 h-6 text-rose-500" />
-                                            </div>
-                                            <div className="flex-1 space-y-1">
-                                                <p className="font-black text-rose-900">{alert.full_name}</p>
-                                                <p className="text-xs text-rose-500/60 font-medium">Flagged Synapse: <span className="font-black underline">{alert.trigger_type}</span></p>
-                                            </div>
-                                            <Badge className="bg-rose-600 px-4 py-1.5 rounded-full text-[9px] uppercase tracking-widest">{alert.severity}</Badge>
-                                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Live Now</span>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </Card>
-                    </TabsContent>
-                </Tabs>
-
-                <Card className="relative overflow-hidden rounded-[5rem] border-white/60 shadow-2xl group bg-gradient-to-br from-teal-500 to-indigo-700 p-20 text-white text-left">
-                     <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px]" />
-                     <div className="relative z-10 flex flex-col md:flex-row items-center gap-16">
-                        <div className="w-32 h-32 rounded-[3rem] bg-white/20 backdrop-blur-3xl border border-white/40 flex items-center justify-center shrink-0 shadow-2xl animate-float-harmonic transition-transform duration-1000 group-hover:rotate-12">
-                            <Shield className="w-16 h-16 text-white" />
-                        </div>
-                        <div className="flex-1 space-y-6">
-                            <h3 className="text-5xl lg:text-6xl font-serif font-black tracking-tighter italic">MindBridge Nexus Fortress</h3>
-                            <p className="text-xl text-white/80 font-medium max-w-2xl leading-relaxed">
-                                All platform synapses are encrypted with <span className="text-white font-black underline decoration-white/40">RSA-4096</span> and shadowed by our active AI monitoring protocol. Your current sanctuary session is completely protected by the Aura Harmonic Firewall.
-                            </p>
-                        </div>
-                        <div className="shrink-0">
-                            <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-[0.5em] text-white bg-white/20 px-12 py-6 rounded-[2.5rem] border border-white/30 backdrop-blur-2xl shadow-2xl animate-pulse">
-                                <span className="w-4 h-4 rounded-full bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,1)]" />
-                                Nexus: Secured
-                            </div>
-                        </div>
-                     </div>
+                        )}
+                    </CardContent>
                 </Card>
             </main>
         </div>
