@@ -1,56 +1,77 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Slider } from '@/components/ui/slider';
 import Navbar from '@/components/Navbar';
-import AnimatedBot from '@/components/AnimatedBot';
-import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Shuffle, Repeat } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Repeat, Heart } from 'lucide-react';
 
 interface Track {
   id: string;
   title: string;
+  artist: string;
   category: string;
   emoji: string;
-  duration: string;
   gradient: string;
   url: string;
+  description: string;
 }
+
+const tracks: Track[] = [
+  { id: '1', title: 'Rain on Leaves', artist: 'Nature Sounds', category: 'rain', emoji: '🌧️', gradient: 'from-slate-400 to-blue-500', description: 'Gentle rain falling on forest leaves', url: 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_270f626311.mp3' },
+  { id: '2', title: 'Ocean Waves', artist: 'Nature Sounds', category: 'nature', emoji: '🌊', gradient: 'from-blue-400 to-cyan-500', description: 'Peaceful waves on a calm shore', url: 'https://cdn.pixabay.com/download/audio/2021/09/06/audio_bb630b37d5.mp3' },
+  { id: '3', title: 'Forest Ambience', artist: 'Nature Sounds', category: 'nature', emoji: '🌲', gradient: 'from-green-400 to-emerald-600', description: 'Birds and breeze in a quiet forest', url: 'https://cdn.pixabay.com/download/audio/2022/02/12/audio_8ca49a7f20.mp3' },
+  { id: '4', title: 'Meditation Bells', artist: 'Zen Studio', category: 'meditation', emoji: '🔔', gradient: 'from-purple-400 to-violet-600', description: 'Tibetan singing bowls for deep calm', url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1bab.mp3' },
+  { id: '5', title: 'Soft Piano', artist: 'Calm Keys', category: 'ambient', emoji: '🎹', gradient: 'from-pink-400 to-rose-500', description: 'Gentle piano melodies for relaxation', url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3' },
+  { id: '6', title: 'Night Crickets', artist: 'Nature Sounds', category: 'nature', emoji: '🦗', gradient: 'from-indigo-400 to-purple-600', description: 'Peaceful night sounds in nature', url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_8bdd1cd1a8.mp3' },
+  { id: '7', title: 'Zen Garden', artist: 'Zen Studio', category: 'meditation', emoji: '🪷', gradient: 'from-teal-400 to-cyan-600', description: 'Tranquil sounds for mindful meditation', url: 'https://cdn.pixabay.com/download/audio/2021/11/01/audio_cb51908d32.mp3' },
+  { id: '8', title: 'Cosmic Drift', artist: 'Ambient Space', category: 'ambient', emoji: '🌌', gradient: 'from-amber-400 to-orange-500', description: 'Deep space ambient soundscape', url: 'https://cdn.pixabay.com/download/audio/2022/08/02/audio_884fe92c21.mp3' },
+  { id: '9', title: 'Campfire Crackling', artist: 'Nature Sounds', category: 'nature', emoji: '🔥', gradient: 'from-orange-400 to-red-500', description: 'Warm crackling fire on a quiet night', url: 'https://cdn.pixabay.com/download/audio/2022/01/27/audio_d0ef johnsonf7c6.mp3' },
+  { id: '10', title: 'Thunderstorm', artist: 'Nature Sounds', category: 'rain', emoji: '⛈️', gradient: 'from-gray-500 to-slate-700', description: 'Distant thunder with steady rainfall', url: 'https://cdn.pixabay.com/download/audio/2021/08/09/audio_dc39bde8e6.mp3' },
+  { id: '11', title: 'Mountain Stream', artist: 'Nature Sounds', category: 'nature', emoji: '🏔️', gradient: 'from-sky-400 to-blue-600', description: 'Crystal clear stream over smooth rocks', url: 'https://cdn.pixabay.com/download/audio/2022/06/07/audio_aab78e9788.mp3' },
+  { id: '12', title: 'Wind Chimes', artist: 'Zen Studio', category: 'meditation', emoji: '🎐', gradient: 'from-yellow-400 to-amber-500', description: 'Gentle wind chimes in a soft breeze', url: 'https://cdn.pixabay.com/download/audio/2022/04/27/audio_a3bac51a9e.mp3' },
+  { id: '13', title: 'Lofi Chill', artist: 'Lofi Beats', category: 'ambient', emoji: '🎧', gradient: 'from-violet-400 to-purple-600', description: 'Relaxing lofi hip hop beats', url: 'https://cdn.pixabay.com/download/audio/2022/10/25/audio_946b3855a0.mp3' },
+  { id: '14', title: 'Whale Songs', artist: 'Ocean Depths', category: 'meditation', emoji: '🐋', gradient: 'from-blue-500 to-indigo-700', description: 'Soothing whale calls from the deep ocean', url: 'https://cdn.pixabay.com/download/audio/2021/10/25/audio_5fc584b8ea.mp3' },
+  { id: '15', title: 'Morning Birds', artist: 'Nature Sounds', category: 'nature', emoji: '🐦', gradient: 'from-lime-400 to-green-500', description: 'Peaceful dawn chorus of birds', url: 'https://cdn.pixabay.com/download/audio/2022/03/17/audio_f49dc5bd4e.mp3' },
+  { id: '16', title: 'Soft Guitar', artist: 'Acoustic Dreams', category: 'ambient', emoji: '🎸', gradient: 'from-rose-400 to-pink-600', description: 'Fingerpicked acoustic guitar lullaby', url: 'https://cdn.pixabay.com/download/audio/2022/11/22/audio_febc508520.mp3' },
+  { id: '17', title: 'Snowfall Silence', artist: 'Winter Sounds', category: 'ambient', emoji: '❄️', gradient: 'from-blue-200 to-slate-400', description: 'Pure silence of softly falling snow', url: 'https://cdn.pixabay.com/download/audio/2022/12/01/audio_cb16da8148.mp3' },
+  { id: '18', title: 'Flute & Nature', artist: 'Zen Studio', category: 'meditation', emoji: '🎵', gradient: 'from-emerald-400 to-teal-600', description: 'Native flute blended with nature sounds', url: 'https://cdn.pixabay.com/download/audio/2022/09/13/audio_29870e4af2.mp3' },
+  { id: '19', title: 'Deep Sleep', artist: 'Sleep Lab', category: 'ambient', emoji: '😴', gradient: 'from-slate-500 to-gray-700', description: 'Low frequency tones for deep sleep', url: 'https://cdn.pixabay.com/download/audio/2022/07/04/audio_c8f55b3921.mp3' },
+  { id: '20', title: 'Spring Rain', artist: 'Nature Sounds', category: 'rain', emoji: '🌸', gradient: 'from-pink-300 to-purple-400', description: 'Light spring shower with birdsong', url: 'https://cdn.pixabay.com/download/audio/2022/05/13/audio_4e48017d8d.mp3' },
+];
+
+const categories = [
+  { id: 'all', label: 'All', emoji: '🎵' },
+  { id: 'nature', label: 'Nature', emoji: '🌿' },
+  { id: 'rain', label: 'Rain', emoji: '🌧️' },
+  { id: 'meditation', label: 'Meditation', emoji: '🧘' },
+  { id: 'ambient', label: 'Ambient', emoji: '✨' },
+];
 
 const RelaxMusic = () => {
   const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [volume, setVolume] = useState([70]);
+  const [volume, setVolume] = useState(70);
   const [isMuted, setIsMuted] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
-
-  const categories = [
-    { id: 'all', label: 'All', emoji: '🎵' },
-    { id: 'nature', label: 'Nature', emoji: '🌿' },
-    { id: 'rain', label: 'Rain', emoji: '🌧️' },
-    { id: 'meditation', label: 'Meditation', emoji: '🧘' },
-    { id: 'ambient', label: 'Ambient', emoji: '✨' },
-  ];
-
+  const [repeat, setRepeat] = useState(true);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const filtered = activeCategory === 'all' ? tracks : tracks.filter(t => t.category === activeCategory);
+
   useEffect(() => {
-    if (currentTrack) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = currentTrack.url;
-        audioRef.current.volume = (volume[0] || 70) / 100;
-        if (isPlaying) audioRef.current.play().catch(console.error);
-      } else {
-        audioRef.current = new Audio(currentTrack.url);
-        audioRef.current.volume = (volume[0] || 70) / 100;
-        audioRef.current.loop = true;
-        if (isPlaying) audioRef.current.play().catch(console.error);
-      }
+    audioRef.current = new Audio();
+    audioRef.current.loop = true;
+    return () => { audioRef.current?.pause(); };
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current && currentTrack) {
+      audioRef.current.pause();
+      audioRef.current.src = currentTrack.url;
+      audioRef.current.volume = isMuted ? 0 : volume / 100;
+      if (isPlaying) audioRef.current.play().catch(console.error);
     }
-    return () => { if (audioRef.current) audioRef.current.pause(); };
   }, [currentTrack]);
 
   useEffect(() => {
@@ -61,278 +82,169 @@ const RelaxMusic = () => {
   }, [isPlaying]);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : (volume[0] || 70) / 100;
-    }
+    if (audioRef.current) audioRef.current.volume = isMuted ? 0 : volume / 100;
   }, [volume, isMuted]);
 
-  const tracks: Track[] = [
-    { id: '1', title: 'Ocean Waves', category: 'nature', emoji: '🌊', duration: '10:00', gradient: 'from-blue-400 to-cyan-500', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-    { id: '2', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', title: 'Forest Birds', category: 'nature', emoji: '🐦', duration: '8:30', gradient: 'from-green-400 to-emerald-500' },
-    { id: '3', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', title: 'Gentle Rain', category: 'rain', emoji: '🌧️', duration: '15:00', gradient: 'from-gray-400 to-slate-500' },
-    { id: '4', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3', title: 'Thunderstorm', category: 'rain', emoji: '⛈️', duration: '12:00', gradient: 'from-purple-400 to-violet-500' },
-    { id: '5', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3', title: 'Zen Garden', category: 'meditation', emoji: '🪷', duration: '20:00', gradient: 'from-pink-400 to-rose-500' },
-    { id: '6', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3', title: 'Deep Breathing', category: 'meditation', emoji: '🧘', duration: '5:00', gradient: 'from-teal-400 to-cyan-500' },
-    { id: '7', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3', title: 'Cosmic Journey', category: 'ambient', emoji: '🌌', duration: '30:00', gradient: 'from-indigo-400 to-purple-500' },
-    { id: '8', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3', title: 'Starlight', category: 'ambient', emoji: '⭐', duration: '25:00', gradient: 'from-amber-400 to-orange-500' },
-    { id: '9', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3', title: 'Mountain Stream', category: 'nature', emoji: '🏔️', duration: '10:00', gradient: 'from-sky-400 to-blue-500' },
-    { id: '10', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3', title: 'Night Crickets', category: 'nature', emoji: '🦗', duration: '12:00', gradient: 'from-lime-400 to-green-500' },
-  ];
-
-  const filteredTracks = activeCategory === 'all'
-    ? tracks
-    : tracks.filter(t => t.category === activeCategory);
-
-  const handleLogout = () => {
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userName');
-    navigate('/');
-  };
-
-  const playTrack = (track: Track) => {
-    setCurrentTrack(track);
-    setIsPlaying(true);
-  };
-
-  const togglePlay = () => {
-    setIsPlaying(!isPlaying);
+  const handleTrackClick = (track: Track) => {
+    if (currentTrack?.id === track.id) {
+      setIsPlaying(!isPlaying);
+    } else {
+      setCurrentTrack(track);
+      setIsPlaying(true);
+    }
   };
 
   const handleNext = () => {
-    const idx = filteredTracks.findIndex(t => t.id === currentTrack?.id);
-    const next = filteredTracks[(idx + 1) % filteredTracks.length];
-    if (next) playTrack(next);
+    const idx = tracks.findIndex(t => t.id === currentTrack?.id);
+    const next = tracks[(idx + 1) % tracks.length];
+    setCurrentTrack(next);
+    setIsPlaying(true);
   };
 
   const handlePrev = () => {
-    const idx = filteredTracks.findIndex(t => t.id === currentTrack?.id);
-    const prev = filteredTracks[(idx - 1 + filteredTracks.length) % filteredTracks.length];
-    if (prev) playTrack(prev);
+    const idx = tracks.findIndex(t => t.id === currentTrack?.id);
+    const prev = tracks[(idx - 1 + tracks.length) % tracks.length];
+    setCurrentTrack(prev);
+    setIsPlaying(true);
   };
 
-  const handleShuffle = () => {
-    const random = filteredTracks[Math.floor(Math.random() * filteredTracks.length)];
-    if (random) playTrack(random);
+  const toggleFavorite = (id: string) => {
+    setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
   };
 
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
-    audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('ended', handleNext);
-    return () => {
-      audio.removeEventListener('timeupdate', updateTime);
-      audio.removeEventListener('loadedmetadata', updateDuration);
-      audio.removeEventListener('ended', handleNext);
-    };
-  }, [audioRef.current, filteredTracks, currentTrack]);
-
-  const formatTime = (s: number) => {
-    if (!s || isNaN(s)) return '0:00';
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return m + ':' + (sec < 10 ? '0' : '') + sec;
-  };
+  const handleLogout = () => { localStorage.clear(); navigate('/'); };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <Navbar userRole="user" onLogout={handleLogout} />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 max-w-6xl">
+
         {/* Header */}
-        <div className="text-center mb-8 fade-in-up">
-          <h1 className="font-serif text-4xl font-bold text-foreground mb-4">
-            Relax & Unwind
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Immerse yourself in calming sounds and nature visualizations
-          </p>
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-serif font-bold text-white mb-2">🎵 Relaxation Music</h1>
+          <p className="text-purple-200 text-lg">Soothing sounds to calm your mind and restore balance</p>
         </div>
 
-        {/* Visual area with animated bot */}
-        <Card variant="glass" className="mb-8 overflow-hidden">
-          <CardContent className="p-0">
-            <div className={cn(
-              'relative h-64 md:h-80 flex items-center justify-center transition-all duration-1000',
-              currentTrack
-                ? `bg-gradient-to-br ${currentTrack.gradient}`
-                : 'bg-gradient-to-br from-primary/20 to-highlight/20'
-            )}>
-              {/* Animated circles */}
-              <div className="absolute inset-0 overflow-hidden">
-                {isPlaying && (
-                  <>
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-white/10 breathe-circle" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white/5 breathe-circle" style={{ animationDelay: '0.5s' }} />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-white/5 breathe-circle" style={{ animationDelay: '1s' }} />
-                  </>
-                )}
+        {/* Now Playing */}
+        {currentTrack && (
+          <div className={`bg-gradient-to-r ${currentTrack.gradient} rounded-3xl p-6 mb-8 shadow-2xl`}>
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center text-4xl flex-shrink-0 shadow-lg">
+                {currentTrack.emoji}
               </div>
-
-              <div className="relative z-10 text-center">
-                {currentTrack ? (
-                  <div className="fade-in-up">
-                    <span className="text-6xl mb-4 block">{currentTrack.emoji}</span>
-                    <h2 className="font-serif text-2xl font-bold text-white">
-                      {currentTrack.title}
-                    </h2>
-                    <p className="text-white/70 mt-1">{currentTrack.duration}</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <AnimatedBot size="lg" mood="happy" />
-                    <p className="text-foreground mt-4 font-medium">
-                      Select a track to begin relaxing
-                    </p>
-                  </div>
-                )}
+              <div className="flex-1 min-w-0">
+                <p className="text-white/70 text-xs uppercase tracking-widest font-semibold mb-1">Now Playing</p>
+                <h2 className="text-white text-2xl font-bold truncate">{currentTrack.title}</h2>
+                <p className="text-white/80 text-sm mt-1">{currentTrack.description}</p>
+              </div>
+              <div className="flex flex-col items-end gap-3">
+                {/* Controls */}
+                <div className="flex items-center gap-3">
+                  <button onClick={handlePrev} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all">
+                    <SkipBack className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setIsPlaying(!isPlaying)}
+                    className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-lg hover:scale-105 transition-all">
+                    {isPlaying
+                      ? <Pause className="w-6 h-6 text-gray-800" />
+                      : <Play className="w-6 h-6 text-gray-800 ml-1" />}
+                  </button>
+                  <button onClick={handleNext} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all">
+                    <SkipForward className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setRepeat(!repeat)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all ${repeat ? 'bg-white/40' : 'bg-white/20 hover:bg-white/30'}`}>
+                    <Repeat className="w-4 h-4" />
+                  </button>
+                </div>
+                {/* Volume */}
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setIsMuted(!isMuted)} className="text-white/80 hover:text-white">
+                    {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </button>
+                  <input type="range" min="0" max="100" value={isMuted ? 0 : volume}
+                    onChange={e => { setVolume(Number(e.target.value)); setIsMuted(false); }}
+                    className="w-28 accent-white" />
+                  <span className="text-white/70 text-xs w-8">{isMuted ? 0 : volume}%</span>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Player controls */}
-        {currentTrack && (
-          <Card variant="glass" className="mb-8 fade-in-up">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row items-center gap-6">
-                {/* Main controls */}
-                <div className="flex items-center gap-4">
-                  <Button variant="ghost" size="icon" onClick={handleShuffle}>
-                    <Shuffle className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={handlePrev}>
-                    <SkipBack className="w-5 h-5" />
-                  </Button>
-                  <Button
-                    variant="hero"
-                    size="icon"
-                    className="w-14 h-14 rounded-full"
-                    onClick={togglePlay}
-                  >
-                    {isPlaying ? (
-                      <Pause className="w-6 h-6" />
-                    ) : (
-                      <Play className="w-6 h-6 ml-1" />
-                    )}
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={handleNext}>
-                    <SkipForward className="w-5 h-5" />
-                  </Button>
-                  <Button variant="ghost" size="icon">
-                    <Repeat className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Progress bar */}
-                <div className="flex-1 w-full md:w-auto">
-                  <Slider
-                    defaultValue={[0]}
-                    max={100}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between mt-1">
-                    <span className="text-xs text-muted-foreground">{formatTime(currentTime)}</span>
-                    <span className="text-xs text-muted-foreground">{formatTime(duration)}</span>
-                  </div>
-                </div>
-
-                {/* Volume */}
-                <div className="flex items-center gap-2 w-32">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsMuted(!isMuted)}
-                  >
-                    {isMuted ? (
-                      <VolumeX className="w-4 h-4" />
-                    ) : (
-                      <Volume2 className="w-4 h-4" />
-                    )}
-                  </Button>
-                  <Slider
-                    value={isMuted ? [0] : volume}
-                    onValueChange={setVolume}
-                    max={100}
-                    step={1}
-                    className="w-20"
-                  />
-                </div>
+            {/* Animated bars */}
+            {isPlaying && (
+              <div className="flex items-end gap-1 mt-4 h-8">
+                {[...Array(24)].map((_, i) => (
+                  <div key={i} className="bg-white/40 rounded-full w-1.5 animate-pulse"
+                    style={{ height: `${20 + Math.random() * 60}%`, animationDelay: `${i * 0.1}s` }} />
+                ))}
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         )}
 
-        {/* Category filters */}
-        <div className="flex flex-wrap gap-2 mb-6 justify-center">
-          {categories.map((cat) => (
-            <Button
-              key={cat.id}
-              variant={activeCategory === cat.id ? 'default' : 'glass'}
-              size="sm"
-              onClick={() => setActiveCategory(cat.id)}
-            >
-              <span className="mr-1">{cat.emoji}</span>
-              {cat.label}
-            </Button>
+        {/* Category Filter */}
+        <div className="flex gap-3 mb-6 flex-wrap">
+          {categories.map(cat => (
+            <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                activeCategory === cat.id
+                  ? 'bg-purple-500 text-white shadow-lg scale-105'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}>
+              {cat.emoji} {cat.label}
+            </button>
           ))}
         </div>
 
-        {/* Track list */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTracks.map((track, index) => (
-            <Card
-              key={track.id}
-              variant="interactive"
-              className={cn(
-                'fade-in-up cursor-pointer',
-                currentTrack?.id === track.id && 'ring-2 ring-primary'
-              )}
-              style={{ animationDelay: `${index * 0.05}s` }}
-              onClick={() => playTrack(track)}
-            >
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className={cn(
-                  'w-14 h-14 rounded-xl flex items-center justify-center text-2xl',
-                  `bg-gradient-to-br ${track.gradient}`
-                )}>
-                  {track.emoji}
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground">{track.title}</h3>
-                  <p className="text-sm text-muted-foreground capitalize">
-                    {track.category} • {track.duration}
-                  </p>
-                </div>
-                {currentTrack?.id === track.id && isPlaying ? (
-                  <div className="flex gap-0.5">
-                    <span className="w-1 h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                    <span className="w-1 h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                    <span className="w-1 h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+        {/* Track Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map(track => (
+            <div key={track.id}
+              className={`relative rounded-2xl overflow-hidden cursor-pointer transition-all hover:scale-105 hover:shadow-2xl ${
+                currentTrack?.id === track.id ? 'ring-2 ring-white shadow-2xl scale-105' : ''
+              }`}
+              onClick={() => handleTrackClick(track)}>
+              <div className={`bg-gradient-to-br ${track.gradient} p-5`}>
+                <div className="flex items-start justify-between mb-3">
+                  <span className="text-3xl">{track.emoji}</span>
+                  <div className="flex gap-2">
+                    <button onClick={e => { e.stopPropagation(); toggleFavorite(track.id); }}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                        favorites.includes(track.id) ? 'bg-red-500 text-white' : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}>
+                      <Heart className="w-3 h-3" fill={favorites.includes(track.id) ? 'white' : 'none'} />
+                    </button>
+                    {currentTrack?.id === track.id && isPlaying && (
+                      <div className="flex items-end gap-0.5 h-7 px-2 bg-white/20 rounded-full">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="bg-white w-0.5 rounded-full animate-bounce"
+                            style={{ height: '60%', animationDelay: `${i * 0.15}s` }} />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <Play className="w-5 h-5 text-muted-foreground" />
-                )}
-              </CardContent>
-            </Card>
+                </div>
+                <h3 className="text-white font-bold text-sm leading-tight">{track.title}</h3>
+                <p className="text-white/70 text-xs mt-1">{track.description}</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-white/60 text-xs capitalize">{track.category}</span>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    currentTrack?.id === track.id && isPlaying ? 'bg-white' : 'bg-white/30'
+                  }`}>
+                    {currentTrack?.id === track.id && isPlaying
+                      ? <Pause className="w-3 h-3 text-gray-800" />
+                      : <Play className="w-3 h-3 text-white ml-0.5" />}
+                  </div>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
 
-        {/* Tip */}
-        <Card variant="calm" className="mt-8 max-w-2xl mx-auto">
-          <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground">
-              💡 <strong>Tip:</strong> For best results, use headphones and find a comfortable, quiet space.
-            </p>
-          </CardContent>
-        </Card>
+        {/* Footer tip */}
+        <p className="text-center text-white/40 text-xs mt-8">
+          🎧 Use headphones for the best relaxation experience · All sounds loop continuously
+        </p>
       </main>
     </div>
   );
