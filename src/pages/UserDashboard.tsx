@@ -140,8 +140,8 @@ const UserDashboard = () => {
             }
         } catch (err: any) {
             console.error("Camera Denial:", err);
-            setCameraError("Camera access denied. Aura vision requires biometric access.");
-            toast.error("Neural Link Blocked");
+            setCameraError("Camera access denied. Please allow camera permission to scan your mood.");
+            toast.error("Camera Blocked");
         }
     };
 
@@ -195,7 +195,7 @@ const UserDashboard = () => {
 					<div className="absolute inset-0 bg-teal-500/10 blur-[80px] rounded-full animate-pulse" />
 					<Activity className="w-16 h-16 text-teal-600 animate-float-harmonic" />
 				</div>
-				<p className="text-[10px] font-black uppercase tracking-[0.5em] text-teal-700/50 italic animate-pulse">Establishing Neural Link...</p>
+				<p className="text-[10px] font-black uppercase tracking-[0.5em] text-teal-700/50 italic animate-pulse">Loading your dashboard...</p>
 			</div>
 		</div>
     );
@@ -213,8 +213,8 @@ const UserDashboard = () => {
                             <HeartPulse className="w-5 h-5 text-white animate-pulse" />
                         </div>
                         <div className="text-left">
-                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-700/60 leading-none mb-1">Session Protocol</p>
-                            <h3 className="text-lg font-black text-slate-800 tracking-tighter italic">SEEKER <span className="text-teal-600">(PATIENT)</span></h3>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-700/60 leading-none mb-1">Logged in as</p>
+                            <h3 className="text-lg font-black text-slate-800 tracking-tighter italic">Patient</h3>
                         </div>
                     </div>
                 </div>
@@ -229,9 +229,9 @@ const UserDashboard = () => {
                              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-teal-500 to-transparent animate-scan-beam" />
                              
                              <div className="space-y-4">
-                                <h2 className="text-5xl font-serif font-black italic tracking-tighter text-slate-800">Aura Vision Scanner</h2>
+                                <h2 className="text-5xl font-serif font-black italic tracking-tighter text-slate-800">Mood Face Scanner</h2>
                                 <p className="text-[10px] font-black uppercase tracking-[0.5em] text-teal-600">
-                                    {isAnalyzing ? 'Mapping Neural Core...' : cameraError ? 'Device Unresponsive' : 'Bio-Sync Active: Real-AI Color Mapping'}
+                                    {isAnalyzing ? 'Analyzing your mood...' : cameraError ? 'Device Unresponsive' : 'Camera is ready — click Scan'}
                                 </p>
                              </div>
 
@@ -248,7 +248,7 @@ const UserDashboard = () => {
                                 {isAnalyzing && (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6 text-white bg-black/20 backdrop-blur-sm">
                                         <Loader2 className="w-12 h-12 animate-spin text-teal-400" />
-                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] italic shadow-glow">Neural Mapping Live...</p>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] italic shadow-glow">Scanning your face...</p>
                                     </div>
                                 )}
                              </div>
@@ -256,10 +256,10 @@ const UserDashboard = () => {
                              <canvas ref={canvasRef} width={400} height={300} className="hidden" />
 
                              <div className="flex gap-6 justify-center pt-2">
-                                <Button onClick={() => { setScanning(false); stopScan(); }} variant="ghost" disabled={isAnalyzing} className="h-16 px-12 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50">Abort Protocol</Button>
+                                <Button onClick={() => { setScanning(false); stopScan(); }} variant="ghost" disabled={isAnalyzing} className="h-16 px-12 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50">Cancel</Button>
                                 {!cameraError && (
                                     <Button onClick={captureAndAnalyze} disabled={isAnalyzing} className="btn-aura h-16 px-16 shadow-2xl uppercase tracking-[0.3em] font-black text-xs">
-                                        {isAnalyzing ? 'Analysing...' : 'Run Neural Map'}
+                                        {isAnalyzing ? 'Analysing...' : 'Scan My Mood'}
                                     </Button>
                                 )}
                              </div>
@@ -275,7 +275,7 @@ const UserDashboard = () => {
                                 <Sparkles className="w-12 h-12 text-teal-600 animate-pulse mx-auto" />
                              </div>
                              <div className="space-y-4">
-                                <h3 className="text-4xl font-serif font-black italic text-slate-900 tracking-tight">Neuro-Sync Finalized</h3>
+                                <h3 className="text-4xl font-serif font-black italic text-slate-900 tracking-tight">Mood Scan Complete</h3>
                                 <div className="flex items-center justify-center gap-4">
                                     <Badge className="bg-teal-500 rounded-full px-6 py-2 text-[10px] uppercase font-black tracking-[0.2em]">{scanResult.mood}</Badge>
                                     <Badge className="bg-indigo-500 rounded-full px-6 py-2 text-[10px] uppercase font-black tracking-[0.2em]">Intensity: {scanResult.stress}</Badge>
@@ -283,10 +283,10 @@ const UserDashboard = () => {
                              </div>
                              <p className="text-xl font-medium text-slate-500 italic leading-relaxed text-center">"{scanResult.insight}"</p>
                              <div className="p-10 rounded-[3rem] bg-indigo-50/50 border border-indigo-100 border-dashed text-center text-xs">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-4 underline decoration-indigo-200">Aura Protocol Recommendation</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-4 underline decoration-indigo-200">Recommended for You</p>
                                 <p className="text-xl font-black text-indigo-900 tracking-tight italic">{scanResult.recommendation}</p>
                              </div>
-                             <Button onClick={() => setScanResult(null)} className="btn-aura w-full h-16 uppercase tracking-[0.3em] text-[10px] font-black shadow-xl">Synchronize & Baseline</Button>
+                             <Button onClick={() => setScanResult(null)} className="btn-aura w-full h-16 uppercase tracking-[0.3em] text-[10px] font-black shadow-xl">Save My Results</Button>
                         </Card>
                     </div>
                 )}
@@ -295,13 +295,13 @@ const UserDashboard = () => {
                     <div className="space-y-6">
                         <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full harmonic-glass border-white/50 text-[10px] font-black uppercase tracking-[0.4em] text-teal-700 shadow-soft">
                             <Sparkles className="w-4 h-4 text-emerald-500" />
-                            Aura Clinic: Real-AI Sync Authorized
+                            Mood Scan Ready
                         </div>
                         <h1 className="text-6xl lg:text-8xl font-serif font-black tracking-tighter text-slate-900 leading-tight italic">
-                            Biometric <span className="text-aura-gradient not-italic">Sanctuary.</span>
+                            Your Wellness <span className="text-aura-gradient not-italic">Sanctuary.</span>
                         </h1>
                         <p className="text-2xl text-slate-400 font-medium max-w-2xl text-left leading-relaxed">
-                            Welcome, <span className="font-black text-slate-800 underline decoration-teal-200">{userData?.display_name || 'Friend'}</span>. Your neural baseline has been established via the <span className="text-teal-600 font-bold italic">Real-AI Aura Platform</span>. 
+                            Welcome, <span className="font-black text-slate-800 underline decoration-teal-200">{userData?.display_name || 'Friend'}</span>. Track your mood, stress and mental wellbeing — <span className="text-teal-600 font-bold italic">all in one place</span>. 
                         </p>
                     </div>
 
@@ -311,12 +311,12 @@ const UserDashboard = () => {
 								<Camera className="w-10 h-10 text-teal-600" />
 							</div>
 							<div className="space-y-1">
-								<p className="text-2xl font-serif font-black italic tracking-tight text-slate-800 uppercase underline decoration-teal-100">Aura Vision</p>
-								<p className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Neural Real-AI Scan</p>
+								<p className="text-2xl font-serif font-black italic tracking-tight text-slate-800 uppercase underline decoration-teal-100">Mood Scan</p>
+								<p className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Scan your face to detect mood</p>
 							</div>
 						</div>
                         <Button onClick={startScan} className="btn-aura h-20 w-full px-16 text-[12px] tracking-[0.4em] uppercase font-black shadow-2xl border-2 border-white transition-all active:scale-95">
-                            Initialize Real-Sync
+                            Start Face Scan
                             <Zap className="ml-4 w-5 h-5 text-amber-300 animate-pulse" />
                         </Button>
                     </div>
@@ -325,8 +325,8 @@ const UserDashboard = () => {
                 <div className="grid lg:grid-cols-3 gap-12 text-left">
                     <Card className="lg:col-span-2 harmonic-glass border-white p-12 space-y-12 shadow-iris relative">
                         <div className="space-y-4">
-                            <CardTitle className="text-4xl font-serif font-black text-slate-900 italic">Neural Baseline Oscillations</CardTitle>
-                            <CardDescription className="text-lg font-medium text-slate-400 leading-relaxed italic">Mapping your latest emotional health spectrum via the Aura Biometric Layer.</CardDescription>
+                            <CardTitle className="text-4xl font-serif font-black text-slate-900 italic">Your Mood Over Time</CardTitle>
+                            <CardDescription className="text-lg font-medium text-slate-400 leading-relaxed italic">Here's how your mood has been tracking recently.</CardDescription>
                         </div>
                         <div className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -363,7 +363,7 @@ const UserDashboard = () => {
                 {/* Quick Actions Hub */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 text-center">
                      {[
-                        { icon: MessageCircle, title: 'AI Companion', path: '/chat', desc: 'Secure Neural Chat', color: 'bg-teal-50' },
+                        { icon: MessageCircle, title: 'AI Companion', path: '/chat', desc: 'Chat with AI', color: 'bg-teal-50' },
                         { 
                             icon: HeartPulse, 
                             title: 'Clinical Hub', 
@@ -379,9 +379,9 @@ const UserDashboard = () => {
                                 </div>
                             )
                         },
-                        { icon: Gamepad2, title: 'Aura Arcade', path: '/games', desc: 'Clinical Relief Games', color: 'bg-emerald-50' },
-                        { icon: HeartPulse, title: 'Bio-Sync', path: '/stress', desc: 'Clinical Biometrics', color: 'bg-rose-50' },
-                        { icon: Music, title: 'Zen Audio', path: '/music', desc: 'Neural Wave Waves', color: 'bg-indigo-50' },
+                        { icon: Gamepad2, title: 'Calming Games', path: '/games', desc: 'Clinical Relief Games', color: 'bg-emerald-50' },
+                        { icon: HeartPulse, title: 'Stress Check', path: '/stress', desc: 'Clinical Your Wellnesss', color: 'bg-rose-50' },
+                        { icon: Music, title: 'Relaxing Music', path: '/music', desc: 'Soothing sounds', color: 'bg-indigo-50' },
                         { icon: User, title: 'Bio-Profile', path: '/profile', desc: 'Medical Data Hub', color: 'bg-slate-50' },
                     ].map((btn, i) => (
                         <Card key={i} onClick={() => navigate(btn.path)} className="harmonic-glass border-white p-8 cursor-pointer hover:scale-[1.05] active:scale-95 transition-all text-center space-y-4 shadow-soft group">
@@ -401,11 +401,11 @@ const UserDashboard = () => {
                 <section className="space-y-8">
                     <div className="flex items-center justify-between">
                         <div className="space-y-1 text-left">
-                            <h2 className="text-4xl font-serif font-black italic text-slate-800 tracking-tight">Neural Reminders</h2>
+                            <h2 className="text-4xl font-serif font-black italic text-slate-800 tracking-tight">My Reminders</h2>
                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-teal-600/60 leading-none">Establishing Routine Consistency...</p>
                         </div>
                         <Button onClick={() => setShowAddReminder(true)} className="rounded-full gap-2 text-teal-600 bg-teal-50 hover:bg-teal-100 font-black tracking-widest uppercase text-[10px] h-12 px-6 shadow-soft">
-                             <Plus size={16} /> Add Protocol
+                             <Plus size={16} /> Add Reminder
                         </Button>
                     </div>
 
@@ -413,7 +413,7 @@ const UserDashboard = () => {
                         {reminders.length === 0 ? (
                             <Card className="lg:col-span-3 p-20 harmonic-glass border-dashed border-slate-200 flex flex-col items-center justify-center space-y-6 opacity-60">
                                 <Bell className="w-12 h-12 text-slate-300 animate-pulse" />
-                                <p className="text-sm font-black uppercase tracking-widest text-slate-400 italic">No Active Neural Protocols Synchronized</p>
+                                <p className="text-sm font-black uppercase tracking-widest text-slate-400 italic">No reminders added yet</p>
                             </Card>
                         ) : (
                             reminders.map((rem, i) => (
@@ -449,9 +449,9 @@ const UserDashboard = () => {
 							<ShieldCheck className="w-20 h-20 text-white" />
 						</div>
 						<div className="flex-1 space-y-8 text-left">
-							<h3 className="text-5xl lg:text-7xl font-serif font-black tracking-tighter italic">MindBridge Neural Protocol</h3>
+							<h3 className="text-5xl lg:text-7xl font-serif font-black tracking-tighter italic">MindBridge — Your Safe Space</h3>
 							<p className="text-2xl text-white/80 font-medium max-w-3xl leading-relaxed italic text-left">
-								Your emotional resonance is mapped locally via <span className="text-white font-black underline decoration-white/40">RSA-4096 Secure Synapses</span>. Aura Vision baseline is currently Clinical Tier 1.
+								Your data is stored safely via <span className="text-white font-black underline decoration-white/40">end-to-end encryption</span>. MindBridge keeps your information private and secure.
 							</p>
 						</div>
 						<Button className="bg-white text-teal-700 hover:bg-teal-50 h-24 px-24 rounded-[3.5rem] font-black shadow-2xl transition-all active:scale-95 text-[12px] tracking-[0.4em] uppercase">
